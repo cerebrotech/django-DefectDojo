@@ -613,6 +613,20 @@ def add_issues_to_epic(jira, obj, epic_id, issue_keys, ignore_epics=True):
         log_jira_alert(e.text, obj)
         return False
 
+def add_issues_to_epic(jira, obj, epic_id, issue_keys, ignore_epics=True):
+    try:
+        # logger.error("Epic id: {} issue_keys: {}".format(epic_id,issue_keys))
+        epic = jira.issue(epic_id)
+        for issue_key in issue_keys:
+            subtask = jira.issue(issue_key)
+            subtask.update(fields={'parent': {'id': epic.id}})
+        # return jira.add_issues_to_epic(epic_id=epic_id, issue_keys=issue_keys, ignore_epics=ignore_epics)
+    except JIRAError as e:
+        logger.error('error adding issues %s to epic %s for %s', issue_keys, epic_id, obj.id)
+        logger.exception(e)
+        log_jira_alert(e.text, obj)
+        return False
+
 
 # we need two separate celery tasks due to the decorators we're using to map to/from ids
 
