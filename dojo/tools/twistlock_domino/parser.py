@@ -217,13 +217,13 @@ class PackageMetadata(object):
 class TwistlockDominoParser(object):
 
     def get_scan_types(self):
-        return ["Twistlock Image Scan"]
+        return ["Twistlock Domino Image Scan"]
 
     def get_label_for_scan_types(self, scan_type):
-        return "Twistlock Image Scan"
+        return "Twistlock Domino Image Scan"
 
     def get_description_for_scan_types(self, scan_type):
-        return "JSON output of twistcli image scan or CSV."
+        return "Domino JSON output of twistcli image scan or CSV."
 
     def get_findings(self, filename, test):
 
