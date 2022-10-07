@@ -214,7 +214,7 @@ class PackageMetadata(object):
 
 
 
-class TwistlockParser(object):
+class TwistlockDominoParser(object):
 
     def get_scan_types(self):
         return ["Twistlock Image Scan"]
