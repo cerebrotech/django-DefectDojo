@@ -130,8 +130,7 @@ def jprint(data,ident=1):
 
 
 def send_to_slack(json_data):
-    webhookUrl = 'https://hooks.slack.com/services/***REMOVED***/***REMOVED***/***REMOVED***' #nexpose-scans
-    # webhookUrl = "https://hooks.slack.com/services/***REMOVED***/***REMOVED***/***REMOVED***"  # -- webhook for channel #infosec-nexpose
+    webhookUrl = ''
     respose = requests.post(webhookUrl, json={"text": "{}".format(json_data)})
 
 def response_checker(response,*args):
