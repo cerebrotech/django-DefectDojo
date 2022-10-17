@@ -11,6 +11,7 @@ from domino.imports.dd_api import selenium_login
 from domino.imports.dd_api import  ddapi
 from domino.base_helpers import aws_helper
 from domino.imports.twistlock_parser import json_parser
+from domino.imports.custom_fields import custom_fields_jira
 
 def get_products_list_from_dd(api_base_url):
     products_dict={} #{name:id}
@@ -61,7 +62,7 @@ def create_engagement_stub(product_id,expecting_engagement_name,domino_next_rele
 
     return engagement_id
 
-def get_existing_or_new_engagement_id(product_id,api_base_url,base_url,scan_report_obj,domino_next_release,chromedriver_path,headless):
+def get_existing_or_new_engagement_id(product_id,api_base_url,base_url,scan_report_obj,domino_next_release,chromedriver_path,headless,custom_labels):
     s_user,s_pass=get_s_user_pass()
     engagements_dict=ddapi.get_engagements(product_id,api_base_url)
     engagements_dict_obj=get_engagements_metadata.GetEngagementsMetadata(engagements_dict)
@@ -81,7 +82,7 @@ def get_existing_or_new_engagement_id(product_id,api_base_url,base_url,scan_repo
         engagement_id = create_engagement_stub(product_id,expecting_engagement_name,domino_next_release,chromedriver_path,s_user,s_pass,api_base_url,base_url,headless)
 
     # here we need to enable Create EPIC via selenium headless chrome because it,s not available via API
-    selenium_login.login_main(engagement_id, chromedriver_path, s_user, s_pass, base_url, headless)
+    selenium_login.login_main(engagement_id, chromedriver_path, s_user, s_pass, base_url, headless,custom_labels)
     return engagement_id
 
 
@@ -106,6 +107,27 @@ def get_s_user_pass(region='us-east-1',secret_name='infosec_defectdojo'):
     return s_user,s_pass
 
 
+def get_custom_lables(eng_ownership_file_path,scan_report_obj,fix_version,jira_project_key):
+    existing_containers_to_owners_dict=custom_fields_jira.get_existing_containers_list(eng_ownership_file_path)
+    if scan_report_obj.container_name in existing_containers_to_owners_dict.keys():
+        owner=existing_containers_to_owners_dict[scan_report_obj.container_name]
+        if "?" in owner:
+            owner=False
+    else:
+        print("Coudn't find container owner for  conatiner:",scan_report_obj.container_name,"Doc: ",eng_ownership_file_path)
+        exit(11)
+
+    #"fixVersions": [{"add": {"name": version}}]
+    if jira_project_key.lower().strip()=='osst':
+        custom_field_key="customfield_13459"
+    else:
+        custom_field_key = "customfield_13459"
+
+    custom_labels = {custom_field_key:"selenium","fixVersions": [{"add": {"name": fix_version}}]}
+
+    return
+
+
 if __name__ == '__main__':
     scan_json_file_path='/Users/mannysingh/Documents/daily-work/defectdojo/NO-CVE-2022-32532-vuln812.json'
     base_url_with_slash = 'https://defectdojo.secops-master.domino.tech/'
@@ -116,6 +138,7 @@ if __name__ == '__main__':
     chromedriver_path='/Users/mannysingh/Downloads/chromedriver'
     headless=False
     acceptable_severity_list = ['critical', 'high']
+    eng_ownership_file_path='/Users/mannysingh/Documents/daily-work/eng_ownership/master_container_ownership .csv'
     parsed_json_reprt=json_parser.parse_twistlock_json_for_fixale_severity(scan_json_file_path,acceptable_severity_list)
     scan_report_obj=ScanReport(parsed_json_reprt)
 
@@ -123,9 +146,12 @@ if __name__ == '__main__':
     product_id=get_new_or_existing_product_id(scan_report_obj, api_base_url,jira_project_key)
     print("Product id: ",product_id)
 
+    #1.1 get custom lables
+    custom_labels=get_custom_lables(eng_ownership_file_path,scan_report_obj)
+
 
     #2. get existing or new engagement id
-    engagement_id=get_existing_or_new_engagement_id(product_id,api_base_url,base_url_with_slash,scan_report_obj,domino_next_release,chromedriver_path,headless)
+    engagement_id=get_existing_or_new_engagement_id(product_id,api_base_url,base_url_with_slash,scan_report_obj,domino_next_release,chromedriver_path,headless,custom_labels)
     print("engagement id: ", engagement_id)
 
     #3 get existing or new tests for this engagement

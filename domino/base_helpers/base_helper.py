@@ -129,8 +129,13 @@ def jprint(data,ident=1):
     print(json.dumps(data,indent=ident))
 
 
+<<<<<<< HEAD
 def send_to_slack(json_data):
     webhookUrl = ''
+=======
+def send_to_slack(json_data,webhookUrl):
+    # webhookUrl = ''
+>>>>>>> b6a1950f3 (trying to remove slack thingie)
     respose = requests.post(webhookUrl, json={"text": "{}".format(json_data)})
 
 def response_checker(response,*args):
@@ -307,4 +312,8 @@ def delete_create_dir(dir):
 
 if __name__ == '__main__':
     dir='/Users/manny/github/cerebrotech/container_scanning/sample_reports/local/'
+<<<<<<< HEAD
     delete_create_dir(dir)
+=======
+    delete_create_dir(dir)
+>>>>>>> b6a1950f3 (trying to remove slack thingie)

@@ -17,7 +17,7 @@ def dd_login(driver,usernam,password,login_url):
     submit_button.click()
 
 
-def create_epic_and_custom_labels_page(driver,engagement_id,base_url_with_slash):
+def create_epic_and_custom_labels_page(driver,engagement_id,base_url_with_slash,custom_labels):
 
     engagement_url=base_url_with_slash + "engagement/{}/edit".format(engagement_id)
     driver.get(engagement_url)
@@ -28,7 +28,7 @@ def create_epic_and_custom_labels_page(driver,engagement_id,base_url_with_slash)
     inherit_jira_button.click()
 
     #add custom labels
-    custom_labels='{"customfield_13459":"selenium"}'
+    # custom_labels='{"customfield_13459":"selenium"}'
     # labels_field_locator=driver.find_element(By.CSS_SELECTOR, "div[class='CodeMirror cm-s-easymde CodeMirror-wrap']")
     labels_field_locator=driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/form/div[24]/div/div/div[2]")
     action_chains=ActionChains(driver)
@@ -52,7 +52,7 @@ def create_epic_and_custom_labels_page(driver,engagement_id,base_url_with_slash)
 
 
 
-def login_main(engagement_id,chromedriver_path,s_user,s_pass,base_url_with_slash,headless):
+def login_main(engagement_id,chromedriver_path,s_user,s_pass,base_url_with_slash,headless,custom_labels):
 
     # CHROMEDRIVER_PATH = '/Users/mannysingh/Downloads/chromedriver'
     chrome_options = Options()
@@ -65,7 +65,7 @@ def login_main(engagement_id,chromedriver_path,s_user,s_pass,base_url_with_slash
     dd_login(driver, s_user, s_pass, base_url_with_slash)
 
     # 2 operations at enagement level
-    create_epic_and_custom_labels_page(driver, engagement_id, base_url_with_slash)
+    create_epic_and_custom_labels_page(driver, engagement_id, base_url_with_slash,custom_labels)
 
 
 if __name__ == '__main__':
