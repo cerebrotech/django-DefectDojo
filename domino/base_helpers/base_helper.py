@@ -129,13 +129,8 @@ def jprint(data,ident=1):
     print(json.dumps(data,indent=ident))
 
 
-<<<<<<< HEAD
-def send_to_slack(json_data):
-    webhookUrl = ''
-=======
 def send_to_slack(json_data,webhookUrl):
     # webhookUrl = ''
->>>>>>> b6a1950f3 (trying to remove slack thingie)
     respose = requests.post(webhookUrl, json={"text": "{}".format(json_data)})
 
 def response_checker(response,*args):
