@@ -107,7 +107,8 @@ def get_s_user_pass(region='us-east-1',secret_name='infosec_defectdojo'):
     return s_user,s_pass
 
 
-def get_custom_lables(eng_ownership_file_path,scan_report_obj,fix_version,jira_project_key):
+def get_custom_lables(eng_ownership_file_path,scan_report_obj,fix_version,jira_project_key,eng_teams,found_in_release):
+
     existing_containers_to_owners_dict=custom_fields_jira.get_existing_containers_list(eng_ownership_file_path)
     if scan_report_obj.container_name in existing_containers_to_owners_dict.keys():
         owner=existing_containers_to_owners_dict[scan_report_obj.container_name]
@@ -119,17 +120,29 @@ def get_custom_lables(eng_ownership_file_path,scan_report_obj,fix_version,jira_p
 
     #"fixVersions": [{"add": {"name": version}}]
     if jira_project_key.lower().strip()=='osst':
-        custom_field_key="customfield_13459"
+        container_custom_field_key="customfield_13459"
+        team_custom_field_key="customfield_13536"
+        container_tag_key='customfield_13460'
+        found_in_release_key='customfield_13461'
     else:
-        custom_field_key = "customfield_13459"
+        container_custom_field_key = "customfield_13459"
+        team_custom_field_key = "customfield_13536"
+        container_tag_key = 'customfield_13536'
+        found_in_release_key = ''
 
-    custom_labels = {custom_field_key:"selenium","fixVersions": [{"add": {"name": fix_version}}]}
+    custom_labels = {container_custom_field_key: scan_report_obj.container_name,
+                     "fixVersions": [{"add": {"name": fix_version}}],
+                     team_custom_field_key: {"value": owner},
+                     container_tag_key:scan_report_obj.container_tag,
+                     found_in_release_key:found_in_release}
 
-    return
+    if owner in eng_teams:
+        custom_labels[team_custom_field_key]={"value": owner}
 
+    return json.dumps(custom_labels)
 
 if __name__ == '__main__':
-    scan_json_file_path='/Users/mannysingh/Documents/daily-work/defectdojo/NO-CVE-2022-32532-vuln812.json'
+    scan_json_file_path='/Users/mannysingh/Documents/daily-work/defectdojo/fieltask.json'
     base_url_with_slash = 'https://defectdojo.secops-master.domino.tech/'
     api_base_url = base_url_with_slash + "api/v2/"
     jira_project_key='OSST'
@@ -138,7 +151,12 @@ if __name__ == '__main__':
     chromedriver_path='/Users/mannysingh/Downloads/chromedriver'
     headless=False
     acceptable_severity_list = ['critical', 'high']
+    found_in_release='5.4.0'
     eng_ownership_file_path='/Users/mannysingh/Documents/daily-work/eng_ownership/master_container_ownership .csv'
+    eng_teams = ['Train', 'Control', 'Develop', 'CS&F', 'Data', 'DevProd', 'Distributions', 'Hybrid',
+                 'Identity & SM', 'Lite Users', 'Partner Integrations', 'Platform Services',
+                 'Publish, Host, Monitor', 'QE', 'RE', 'Security', '']
+
     parsed_json_reprt=json_parser.parse_twistlock_json_for_fixale_severity(scan_json_file_path,acceptable_severity_list)
     scan_report_obj=ScanReport(parsed_json_reprt)
 
@@ -147,7 +165,9 @@ if __name__ == '__main__':
     print("Product id: ",product_id)
 
     #1.1 get custom lables
-    custom_labels=get_custom_lables(eng_ownership_file_path,scan_report_obj)
+    custom_labels=get_custom_lables(eng_ownership_file_path,scan_report_obj,domino_next_release,jira_project_key,eng_teams,found_in_release)
+    print(custom_labels)
+
 
 
     #2. get existing or new engagement id

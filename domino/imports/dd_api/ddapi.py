@@ -137,7 +137,7 @@ def reimport_scan(existing_test_id,scan_json_file_path,base_api_url_with_slash,m
     files = {
         'minimum_severity': (None, minimum_severity),
         'active': (None, 'true'),
-        'verified': (None, 'true'),
+        'verified': (None, 'false'),
         'scan_type': (None, 'Twistlock Domino Image Scan'),
         'file': open(scan_json_file_path, 'rb'),
         'test': (None, existing_test_id),
@@ -162,7 +162,7 @@ def import_scan(engagement_id,scan_json_file_path,base_api_url_with_slash,minimu
     files = {
         'minimum_severity': (None, minimum_severity),
         'active': (None, 'true'),
-        'verified': (None, 'true'),
+        'verified': (None, 'false'),
         'scan_type': (None, 'Twistlock Domino Image Scan'),
         'file': open(scan_json_file_path, 'rb'),
         'engagement': (None, engagement_id),

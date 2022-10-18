@@ -30,11 +30,12 @@ def create_epic_and_custom_labels_page(driver,engagement_id,base_url_with_slash,
     #add custom labels
     # custom_labels='{"customfield_13459":"selenium"}'
     # labels_field_locator=driver.find_element(By.CSS_SELECTOR, "div[class='CodeMirror cm-s-easymde CodeMirror-wrap']")
-    labels_field_locator=driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div/div[3]/div/form/div[24]/div/div/div[2]")
+    labels_field_locator=driver.find_element(By.XPATH, "//html/body/div[1]/div[1]/div/div[3]/div/form/div[24]/div/div/div[2]/div[6]")
     action_chains=ActionChains(driver)
     action_chains.click(labels_field_locator).perform()
     #clear existing text
     action_chains.double_click()
+    print(custom_labels)
     action_chains.send_keys(custom_labels).perform()
     # labels_field_locator.send_keys(custom_labels)
 
@@ -76,16 +77,22 @@ if __name__ == '__main__':
     ACCOUNT = s_user
     PASSWORD = s_pass
     api_base_url=base_url_with_slash + "api/v2"
-    engagement_id=13
+    engagement_id=17
     CHROMEDRIVER_PATH = '/Users/mannysingh/Downloads/chromedriver'
     chrome_options = Options()
     chrome_options.add_argument("start-maximized")
     driver = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, chrome_options=chrome_options)
+
+    custom_labels='{"customfield_13459": "quay.io/domino/filetask", "fixVersions": [{"add": {"name": "5.4.1"}}],"customfield_13536": {"value": "Data"}}'
+
+
     #1
-    dd_login(driver, ACCOUNT, PASSWORD,base_url_with_slash)
+    dd_login(driver, ACCOUNT, PASSWORD,base_url_with_slash,)
+
+
 
     #2 operations at enagement level
-    create_epic_and_custom_labels_page(driver, engagement_id, base_url_with_slash)
+    create_epic_and_custom_labels_page(driver, engagement_id, base_url_with_slash,custom_labels)
 
 
 
