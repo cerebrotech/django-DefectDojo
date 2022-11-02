@@ -1365,6 +1365,7 @@ DEDUPLICATION_ALGORITHM_PER_PARSER = {
     'BlackDuck API': DEDUPE_ALGO_UNIQUE_ID_FROM_TOOL,
     'docker-bench-security Scan': DEDUPE_ALGO_HASH_CODE,
     'Twistlock Image Scan': DEDUPE_ALGO_HASH_CODE,
+    'Twistlock Domino Image Scan': DEDUPE_ALGO_HASH_CODE,
     'NeuVector (REST)': DEDUPE_ALGO_HASH_CODE,
 }
 
