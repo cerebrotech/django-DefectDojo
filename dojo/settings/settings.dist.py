@@ -1202,6 +1202,7 @@ HASHCODE_FIELDS_PER_SCANNER = {
     'docker-bench-security Scan': ['unique_id_from_tool'],
     'Veracode SourceClear Scan': ['title', 'vulnerability_ids', 'component_name', 'component_version'],
     'Twistlock Image Scan': ['title', 'severity', 'component_name', 'component_version'],
+    'Jfrog-Twist cli Domino Image Scan':['cve','unique_id_from_tool', 'component_name', 'component_version','service'],
     'NeuVector (REST)': ['title', 'severity', 'component_name', 'component_version'],
 }
 
@@ -1366,6 +1367,7 @@ DEDUPLICATION_ALGORITHM_PER_PARSER = {
     'docker-bench-security Scan': DEDUPE_ALGO_HASH_CODE,
     'Twistlock Image Scan': DEDUPE_ALGO_HASH_CODE,
     'Twistlock Domino Image Scan': DEDUPE_ALGO_HASH_CODE,
+    'Jfrog-Twist cli Domino Image Scan': DEDUPE_ALGO_HASH_CODE,
     'NeuVector (REST)': DEDUPE_ALGO_HASH_CODE,
 }
 

@@ -38,6 +38,7 @@ services:
         published: ${DD_DATABASE_PORT}
         protocol: tcp
         mode: host
+    platform: linux/amd64
   postgres:
     ports:
       - target: ${DD_DATABASE_PORT}
