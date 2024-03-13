@@ -36,26 +36,47 @@ class CombinedCSVParser(object):
         else:
             title = description
 
-        finding = Finding(
-            cve=cve,
-            title=textwrap.shorten(title, width=255, placeholder="..."),
-            test=test,
-            severity=severity,
-            cvssv3_score =cvssv3_score,
-            description=description,
-            mitigation=fixed_in_pkg,
-            component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
-            component_version=pkg_version,
-            file_path=cve,
-            service=pkg_path,
-            unique_id_from_tool=tool,
-            vuln_id_from_tool=type,
-            false_p=False,
-            duplicate=False,
-            out_of_scope=False,
-            mitigated=None,
-            # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
-            impact=status)
+        if cvssv3_score:
+            finding = Finding(
+                cve=cve,
+                title=textwrap.shorten(title, width=255, placeholder="..."),
+                test=test,
+                severity=severity,
+                cvssv3_score =cvssv3_score,
+                description=description,
+                mitigation=fixed_in_pkg,
+                component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
+                component_version=pkg_version,
+                file_path=cve,
+                service=pkg_path,
+                unique_id_from_tool=tool,
+                vuln_id_from_tool=type,
+                false_p=False,
+                duplicate=False,
+                out_of_scope=False,
+                mitigated=None,
+                # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
+                impact=status)
+        else:
+            finding = Finding(
+                cve=cve,
+                title=textwrap.shorten(title, width=255, placeholder="..."),
+                test=test,
+                severity=severity,
+                description=description,
+                mitigation=fixed_in_pkg,
+                component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
+                component_version=pkg_version,
+                file_path=cve,
+                service=pkg_path,
+                unique_id_from_tool=tool,
+                vuln_id_from_tool=type,
+                false_p=False,
+                duplicate=False,
+                out_of_scope=False,
+                mitigated=None,
+                # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
+                impact=status)
         finding.description = finding.description.strip()
         if cve:
             finding.unsaved_vulnerability_ids = [cve]
