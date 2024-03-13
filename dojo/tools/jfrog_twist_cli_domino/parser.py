@@ -47,7 +47,7 @@ class CombinedCSVParser(object):
             component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
             component_version=pkg_version,
             file_path=cve,
-            line=pkg_path,
+            service=pkg_path,
             unique_id_from_tool=tool,
             vuln_id_from_tool=type,
             false_p=False,
