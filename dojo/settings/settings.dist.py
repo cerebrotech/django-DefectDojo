@@ -1202,7 +1202,7 @@ HASHCODE_FIELDS_PER_SCANNER = {
     'docker-bench-security Scan': ['unique_id_from_tool'],
     'Veracode SourceClear Scan': ['title', 'vulnerability_ids', 'component_name', 'component_version'],
     'Twistlock Image Scan': ['title', 'severity', 'component_name', 'component_version'],
-    'Jfrog-Twist cli Domino Image Scan':['cve','unique_id_from_tool', 'component_name', 'component_version','service'],
+    'Jfrog-Twist cli Domino Image Scan': ['cve','component_name', 'component_version''unique_id_from_tool' ],
     'NeuVector (REST)': ['title', 'severity', 'component_name', 'component_version'],
 }
 
@@ -1243,7 +1243,8 @@ HASHCODE_ALLOWS_NULL_CWE = {
     'Edgescan Scan': True,
     'Bugcrowd API': True,
     'Veracode SourceClear Scan': True,
-    'Twistlock Image Scan': True
+    'Twistlock Image Scan': True,
+    'Jfrog-Twist cli Domino Image Scan':True
 }
 
 # List of fields that are known to be usable in hash_code computation)

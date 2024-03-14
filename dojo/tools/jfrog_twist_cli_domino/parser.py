@@ -90,13 +90,13 @@ class CombinedCSVParser(object):
         if type(content) is bytes:
             content = content.decode('utf-8')
         reader = csv.DictReader(io.StringIO(content), delimiter=',', quotechar='"')
-        for row in reader:
+        for i,row in enumerate(reader):
             finding = self.parse_issue(row, test)
             if finding is not None:
-                key = hashlib.md5((finding.severity + '|' + finding.title + '|' + finding.description).encode('utf-8')).hexdigest()
+                # key = hashlib.md5((finding.severity + '|' + finding.title + '|' + finding.description).encode('utf-8')).hexdigest()
                 # if key not in dupes:
                 if True:
-                    dupes[key] = finding
+                    dupes[i] = finding
         return list(dupes.values())
 
 
