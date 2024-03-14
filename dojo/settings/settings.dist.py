@@ -1202,7 +1202,7 @@ HASHCODE_FIELDS_PER_SCANNER = {
     'docker-bench-security Scan': ['unique_id_from_tool'],
     'Veracode SourceClear Scan': ['title', 'vulnerability_ids', 'component_name', 'component_version'],
     'Twistlock Image Scan': ['title', 'severity', 'component_name', 'component_version'],
-    'Jfrog-Twist cli Domino Image Scan': ['cve','component_name', 'component_version''unique_id_from_tool' ],
+    'Jfrog-Twist cli Domino Image Scan': ['cve','component_name', 'component_version','unique_id_from_tool' ],
     'NeuVector (REST)': ['title', 'severity', 'component_name', 'component_version'],
 }
 
