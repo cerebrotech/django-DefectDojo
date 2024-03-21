@@ -16,5 +16,5 @@ https://dominodatalab.atlassian.net/wiki/spaces/ISAC/pages/2243461464/Vulnerabil
 
 Data Imported on : {{finding_group.test.updated}}
 
-|| ID || Severity || CVE || Component || Version || Status || Fixed In ||| File Path ||| Date First Found || Vuln Type ||{% for finding in finding_group.findings.all %}
-| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.file_path}} | {{finding.created}} | {{finding.vuln_id_from_tool}} |{% endfor %}
+|| ID || Severity || CVE || Component || Version || Status || Fixed In ||| File Path ||| Date First Found || Vuln Type || Tool ||{% for finding in finding_group.findings.all %}
+| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.file_path}} | {{finding.created}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} |{% endfor %}
