@@ -36,7 +36,20 @@ class CombinedCSVParser(object):
         else:
             title = description
 
-        if cvssv3_score:
+        out_of_scope_bool = True
+        active_bool = False
+        if severity:
+            if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
+                out_of_scope_bool = False
+                active_bool=True
+
+        if cvssv3_score and cvssv3_score.strip().lower() !='none':
+            cvssv3_score_bool=True
+        else:
+            cvssv3_score_bool=False
+
+
+        if cvssv3_score_bool:
             finding = Finding(
                 cve=cve,
                 title=textwrap.shorten(title, width=255, placeholder="..."),
@@ -53,7 +66,8 @@ class CombinedCSVParser(object):
                 vuln_id_from_tool=type,
                 false_p=False,
                 duplicate=False,
-                out_of_scope=False,
+                out_of_scope=out_of_scope_bool,
+                active=active_bool,
                 mitigated=None,
                 # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
                 impact=status)
@@ -73,7 +87,8 @@ class CombinedCSVParser(object):
                 vuln_id_from_tool=type,
                 false_p=False,
                 duplicate=False,
-                out_of_scope=False,
+                out_of_scope=out_of_scope_bool,
+                active=active_bool,
                 mitigated=None,
                 # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
                 impact=status)
@@ -101,41 +116,42 @@ class CombinedCSVParser(object):
 
 
 
-def get_item(vulnerability,pkg_typeNameVersion_to_path_dict, test):
-    pkg_pk_to_find_pkg_path=vulnerability['packageName']+"#"+vulnerability['packageVersion']
-    pkg_path=pkg_typeNameVersion_to_path_dict.get(pkg_pk_to_find_pkg_path,' ')
-    severity = convert_severity(vulnerability['severity']) if 'severity' in vulnerability else "Info"
-    vector = vulnerability['vector'] if 'vector' in vulnerability else "CVSS vector not provided. "
-    status = vulnerability['status'] if 'status' in vulnerability else "There seems to be no fix yet. Please check description field."
-    cvss = vulnerability['cvss'] if 'cvss' in vulnerability else "No CVSS score yet."
-    riskFactors = vulnerability['riskFactors'] if 'riskFactors' in vulnerability else "No risk factors."
-
-    # create the finding object
-    finding = Finding(
-        title=vulnerability['id'] + ": " + vulnerability['packageName'] + " - " + vulnerability['packageVersion'],
-        test=test,
-        severity=severity,
-        description=vulnerability['description'] + "<p> Vulnerable Package: " +
-        vulnerability['packageName'] + "</p><p> Current Version: " + str(
-            vulnerability['packageVersion']) + "</p>",
-        mitigation=status.title(),
-        references=vulnerability['link'],
-        component_name=vulnerability['packageName'],
-        component_version=vulnerability['packageVersion'],
-        false_p=False,
-        duplicate=False,
-        out_of_scope=False,
-        mitigated=None,
-        severity_justification="{} (CVSS v3 base score: {})\n\n{}".format(vector, cvss, riskFactors),
-        impact=severity,
-        file_path=pkg_path)
-    finding.unsaved_vulnerability_ids = [vulnerability['id']]
-    finding.description = finding.description.strip()
-
-    return finding
+# def get_item(vulnerability,pkg_typeNameVersion_to_path_dict, test):
+#     pkg_pk_to_find_pkg_path=vulnerability['packageName']+"#"+vulnerability['packageVersion']
+#     pkg_path=pkg_typeNameVersion_to_path_dict.get(pkg_pk_to_find_pkg_path,' ')
+#     severity = convert_severity(vulnerability['severity']) if 'severity' in vulnerability else "Info"
+#     vector = vulnerability['vector'] if 'vector' in vulnerability else "CVSS vector not provided. "
+#     status = vulnerability['status'] if 'status' in vulnerability else "There seems to be no fix yet. Please check description field."
+#     cvss = vulnerability['cvss'] if 'cvss' in vulnerability else "No CVSS score yet."
+#     riskFactors = vulnerability['riskFactors'] if 'riskFactors' in vulnerability else "No risk factors."
+#
+#     # create the finding object
+#     finding = Finding(
+#         title=vulnerability['id'] + ": " + vulnerability['packageName'] + " - " + vulnerability['packageVersion'],
+#         test=test,
+#         severity=severity,
+#         description=vulnerability['description'] + "<p> Vulnerable Package: " +
+#         vulnerability['packageName'] + "</p><p> Current Version: " + str(
+#             vulnerability['packageVersion']) + "</p>",
+#         mitigation=status.title(),
+#         references=vulnerability['link'],
+#         component_name=vulnerability['packageName'],
+#         component_version=vulnerability['packageVersion'],
+#         false_p=False,
+#         duplicate=False,
+#         out_of_scope=False,
+#         mitigated=None,
+#         severity_justification="{} (CVSS v3 base score: {})\n\n{}".format(vector, cvss, riskFactors),
+#         impact=severity,
+#         file_path=pkg_path)
+#     finding.unsaved_vulnerability_ids = [vulnerability['id']]
+#     finding.description = finding.description.strip()
+#
+#     return finding
 
 
 def convert_severity(severity):
+    # severity=severity.lower()
     if severity.lower() == 'important':
         return "Info"
     elif severity.lower() == 'moderate':
@@ -144,15 +160,15 @@ def convert_severity(severity):
         return "Info"
     elif severity.lower() == 'informational':
         return "Info"
-    elif severity == '':
+    elif severity.lower() == '':
         return "Info"
-    elif severity == 'medium':
+    elif severity.lower() == 'medium':
         return "Medium"
-    elif severity == 'low':
+    elif severity.lower() == 'low':
         return "Low"
-    elif severity == 'high':
+    elif severity.lower() == 'high':
         return "High"
-    elif severity == 'critical':
+    elif severity.lower() == 'critical':
         return "Critical"
     else:
         return "Info"
