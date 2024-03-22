@@ -48,6 +48,10 @@ class CombinedCSVParser(object):
         else:
             cvssv3_score_bool=False
 
+        if cve and 'prisma-' in cve.lower():
+            out_of_scope_bool = True
+            active_bool = False
+
 
         if cvssv3_score_bool:
             finding = Finding(
