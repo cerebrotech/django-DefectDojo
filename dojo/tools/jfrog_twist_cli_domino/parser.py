@@ -36,70 +36,77 @@ class CombinedCSVParser(object):
         else:
             title = description
 
+        if cvssv3_score and cvssv3_score.strip().lower() != 'none':
+            cvssv3_score_bool = True
+        else:
+            cvssv3_score_bool = False
+
+        # if cve and 'prisma-' in cve.lower():
+        #     out_of_scope_bool = True
+        #     active_bool = False
+
         out_of_scope_bool = True
         active_bool = False
-        if severity:
+        if severity and cve and 'prisma-' not in cve.lower():
             if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
-                out_of_scope_bool = False
-                active_bool=True
+                # out_of_scope_bool = False
+                # active_bool=True
 
-        if cvssv3_score and cvssv3_score.strip().lower() !='none':
-            cvssv3_score_bool=True
-        else:
-            cvssv3_score_bool=False
+                if cvssv3_score_bool:
+                    finding = Finding(
+                        cve=cve,
+                        title=textwrap.shorten(title, width=255, placeholder="..."),
+                        test=test,
+                        severity=severity,
+                        cvssv3_score=cvssv3_score,
+                        description=description,
+                        mitigation=fixed_in_pkg,
+                        component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
+                        component_version=pkg_version,
+                        file_path=cve,
+                        service=pkg_path,
+                        unique_id_from_tool=tool,
+                        vuln_id_from_tool=type,
+                        # false_p=False,
+                        # duplicate=False,
+                        out_of_scope=out_of_scope_bool,
+                        active=active_bool,
+                        # mitigated=None,
+                        # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
+                        impact=status)
+                else:
+                    finding = Finding(
+                        cve=cve,
+                        title=textwrap.shorten(title, width=255, placeholder="..."),
+                        test=test,
+                        severity=severity,
+                        description=description,
+                        mitigation=fixed_in_pkg,
+                        component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
+                        component_version=pkg_version,
+                        file_path=cve,
+                        service=pkg_path,
+                        unique_id_from_tool=tool,
+                        vuln_id_from_tool=type,
+                        # false_p=False,
+                        # duplicate=False,
+                        out_of_scope=out_of_scope_bool,
+                        active=active_bool,
+                        # mitigated=None,
+                        # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
+                        impact=status)
+                finding.description = finding.description.strip()
+                if cve:
+                    finding.unsaved_vulnerability_ids = [cve]
+                return finding
 
-        if cve and 'prisma-' in cve.lower():
-            out_of_scope_bool = True
-            active_bool = False
+        return None
 
 
-        if cvssv3_score_bool:
-            finding = Finding(
-                cve=cve,
-                title=textwrap.shorten(title, width=255, placeholder="..."),
-                test=test,
-                severity=severity,
-                cvssv3_score =cvssv3_score,
-                description=description,
-                mitigation=fixed_in_pkg,
-                component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
-                component_version=pkg_version,
-                file_path=cve,
-                service=pkg_path,
-                unique_id_from_tool=tool,
-                vuln_id_from_tool=type,
-                false_p=False,
-                duplicate=False,
-                out_of_scope=out_of_scope_bool,
-                active=active_bool,
-                mitigated=None,
-                # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
-                impact=status)
-        else:
-            finding = Finding(
-                cve=cve,
-                title=textwrap.shorten(title, width=255, placeholder="..."),
-                test=test,
-                severity=severity,
-                description=description,
-                mitigation=fixed_in_pkg,
-                component_name=textwrap.shorten(pkg_name, width=200, placeholder="..."),
-                component_version=pkg_version,
-                file_path=cve,
-                service=pkg_path,
-                unique_id_from_tool=tool,
-                vuln_id_from_tool=type,
-                false_p=False,
-                duplicate=False,
-                out_of_scope=out_of_scope_bool,
-                active=active_bool,
-                mitigated=None,
-                # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
-                impact=status)
-        finding.description = finding.description.strip()
-        if cve:
-            finding.unsaved_vulnerability_ids = [cve]
-        return finding
+
+
+
+
 
     def parse(self, filename, test):
         if filename is None:
