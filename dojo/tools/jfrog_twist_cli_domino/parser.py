@@ -45,7 +45,7 @@ class CombinedCSVParser(object):
         #     out_of_scope_bool = True
         #     active_bool = False
 
-        out_of_scope_bool = True
+        out_of_scope_bool = False
         active_bool = False
         if severity and cve and 'prisma-' not in cve.lower():
             if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
