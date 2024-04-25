@@ -864,6 +864,10 @@ def update_jira_issue(obj, *args, **kwargs):
 
         logger.debug('sending fields to JIRA: %s', fields)
 
+        # Domino update - Custom fields to specify
+        if jira_project.custom_fields:
+            fields.update(jira_project.custom_fields)
+
         issue.update(
             summary=jira_summary(obj),
             description=jira_description(obj),
