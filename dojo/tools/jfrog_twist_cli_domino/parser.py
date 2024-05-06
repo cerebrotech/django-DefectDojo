@@ -45,8 +45,8 @@ class CombinedCSVParser(object):
         #     out_of_scope_bool = True
         #     active_bool = False
 
-        out_of_scope_bool = False
-        active_bool = False
+        # out_of_scope_bool = False
+        active_bool = True
         if severity and cve and 'prisma-' not in cve.lower():
             if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
                 # out_of_scope_bool = False
@@ -70,7 +70,7 @@ class CombinedCSVParser(object):
                         # false_p=False,
                         # duplicate=False,
                         # out_of_scope=out_of_scope_bool,
-                        active=active_bool,
+                        # active=active_bool,
                         # mitigated=None,
                         # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
                         impact=status)
@@ -91,7 +91,7 @@ class CombinedCSVParser(object):
                         # false_p=False,
                         # duplicate=False,
                         # out_of_scope=out_of_scope_bool,
-                        active=active_bool,
+                        # active=active_bool,
                         # mitigated=None,
                         # severity_justification="(CVSS v3 base score: {})".format(data_cvss),
                         impact=status)
