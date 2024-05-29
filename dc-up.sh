@@ -26,4 +26,4 @@ else
 fi
 
 echo "Starting docker compose with profile $PROFILE in the foreground ..."
-docker-compose --profile $PROFILE --env-file ./docker/environments/$PROFILE.env up --no-deps
+docker-compose  --profile $PROFILE --env-file ./docker/environments/$PROFILE.env up --no-deps
