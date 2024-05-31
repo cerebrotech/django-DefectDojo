@@ -5,8 +5,11 @@ info:
   x-cortex-tag: django-DefectDojo
   x-cortex-type: service
   x-cortex-owners:
-  - name: null
+  - name: security
     type: group
     provider: OKTA
     description: Updated by eng-devprod
-
+  x-cortex-git:
+    github:
+      alias: cortex
+      repository: cerebrotech/django-DefectDojo
