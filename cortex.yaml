@@ -1,0 +1,15 @@
+openapi: 3.0.1
+info:
+  title: django-DefectDojo
+  description: DefectDojo is a DevSecOps and vulnerability management tool.
+  x-cortex-tag: django-DefectDojo
+  x-cortex-type: service
+  x-cortex-owners:
+  - name: security
+    type: group
+    provider: OKTA
+    description: Updated by eng-devprod
+  x-cortex-git:
+    github:
+      alias: cortex
+      repository: cerebrotech/django-DefectDojo
