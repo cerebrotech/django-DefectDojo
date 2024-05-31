@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: django-DefectDojo
-  description: Cortex descriptor created automatically by eng-devprod
+  description: DefectDojo is a DevSecOps and vulnerability management tool.
   x-cortex-tag: django-DefectDojo
   x-cortex-type: service
   x-cortex-owners:
