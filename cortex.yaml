@@ -2,7 +2,7 @@ openapi: 3.0.1
 info:
   title: django-DefectDojo
   description: DefectDojo is a DevSecOps and vulnerability management tool.
-  x-cortex-tag: django-DefectDojo
+  x-cortex-tag: django-defectdojo
   x-cortex-type: service
   x-cortex-owners:
   - name: security
