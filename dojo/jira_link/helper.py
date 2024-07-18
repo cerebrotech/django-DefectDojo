@@ -864,6 +864,10 @@ def update_jira_issue(obj, *args, **kwargs):
 
         logger.debug('sending fields to JIRA: %s', fields)
 
+        # Domino update - Custom fields to specify
+        if jira_project.custom_fields:
+            fields.update(jira_project.custom_fields)
+
         issue.update(
             summary=jira_summary(obj),
             description=jira_description(obj),
@@ -1152,7 +1156,18 @@ def update_epic(engagement, **kwargs):
             jira = get_jira_connection(jira_instance)
             j_issue = get_jira_issue(engagement)
             issue = jira.issue(j_issue.jira_id)
-            issue.update(summary=engagement.name, description=engagement.name)
+            # issue.update(summary=engagement.name, description=engagement.name)
+
+            # domino change to push epic fields
+            if jira_project.custom_fields:
+                # issue_dict.update(jira_project.custom_fields)
+                fields = {}
+                fields.update(jira_project.custom_fields)
+                issue.update(summary=engagement.name, description=engagement.name,fields=fields)
+            else:
+                issue.update(summary=engagement.name, description=engagement.name)
+
+
             return True
         except JIRAError as e:
             logger.exception(e)
@@ -1190,6 +1205,11 @@ def add_epic(engagement, **kwargs):
             },
             get_epic_name_field_name(jira_instance): engagement.name,
         }
+
+        #domino change to push epic fields
+        if jira_project.custom_fields:
+            issue_dict.update(jira_project.custom_fields)
+
         try:
             jira = get_jira_connection(jira_instance)
             logger.debug('add_epic: %s', issue_dict)

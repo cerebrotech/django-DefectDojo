@@ -1202,6 +1202,7 @@ HASHCODE_FIELDS_PER_SCANNER = {
     'docker-bench-security Scan': ['unique_id_from_tool'],
     'Veracode SourceClear Scan': ['title', 'vulnerability_ids', 'component_name', 'component_version'],
     'Twistlock Image Scan': ['title', 'severity', 'component_name', 'component_version'],
+    'Jfrog-Twist cli Domino Image Scan': ['cve','component_name', 'component_version','unique_id_from_tool' ],
     'NeuVector (REST)': ['title', 'severity', 'component_name', 'component_version'],
 }
 
@@ -1242,13 +1243,14 @@ HASHCODE_ALLOWS_NULL_CWE = {
     'Edgescan Scan': True,
     'Bugcrowd API': True,
     'Veracode SourceClear Scan': True,
-    'Twistlock Image Scan': True
+    'Twistlock Image Scan': True,
+    'Jfrog-Twist cli Domino Image Scan':True
 }
 
 # List of fields that are known to be usable in hash_code computation)
 # 'endpoints' is a pseudo field that uses the endpoints (for dynamic scanners)
 # 'unique_id_from_tool' is often not needed here as it can be used directly in the dedupe algorithm, but it's also possible to use it for hashing
-HASHCODE_ALLOWED_FIELDS = ['title', 'cwe', 'vulnerability_ids', 'line', 'file_path', 'component_name', 'component_version', 'description', 'endpoints', 'unique_id_from_tool', 'severity', 'vuln_id_from_tool']
+HASHCODE_ALLOWED_FIELDS = ['title', 'cwe', 'vulnerability_ids', 'line', 'file_path', 'component_name', 'component_version', 'description', 'endpoints', 'unique_id_from_tool', 'severity', 'vuln_id_from_tool','service','cve']
 
 # Adding fields to the hash_code calculation regardless of the previous settings
 HASH_CODE_FIELDS_ALWAYS = ['service']
@@ -1366,6 +1368,7 @@ DEDUPLICATION_ALGORITHM_PER_PARSER = {
     'docker-bench-security Scan': DEDUPE_ALGO_HASH_CODE,
     'Twistlock Image Scan': DEDUPE_ALGO_HASH_CODE,
     'Twistlock Domino Image Scan': DEDUPE_ALGO_HASH_CODE,
+    'Jfrog-Twist cli Domino Image Scan': DEDUPE_ALGO_HASH_CODE,
     'NeuVector (REST)': DEDUPE_ALGO_HASH_CODE,
 }
 
