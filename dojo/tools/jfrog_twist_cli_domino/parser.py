@@ -28,6 +28,8 @@ class CombinedCSVParser(object):
         description = row.get('description', '')
         pkg_path = row.get('pkg_path', '')
         tool = row.get('tool', '')
+        domino_affected_release = row.get('release')
+        domino_branch = row.get('Domino_branch')
 
         if cve and pkg_name:
             title = cve + ": " + pkg_name + " - " + pkg_version
@@ -67,6 +69,7 @@ class CombinedCSVParser(object):
                         service=pkg_path,
                         unique_id_from_tool=tool,
                         vuln_id_from_tool=type,
+                        steps_to_reproduce=domino_affected_release,
                         # false_p=False,
                         # duplicate=False,
                         # out_of_scope=out_of_scope_bool,
@@ -88,6 +91,7 @@ class CombinedCSVParser(object):
                         service=pkg_path,
                         unique_id_from_tool=tool,
                         vuln_id_from_tool=type,
+                        steps_to_reproduce=domino_affected_release,
                         # false_p=False,
                         # duplicate=False,
                         # out_of_scope=out_of_scope_bool,
