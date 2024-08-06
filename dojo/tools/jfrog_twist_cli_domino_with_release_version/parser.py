@@ -28,8 +28,8 @@ class CombinedCSVParser(object):
         description = row.get('description', '')
         pkg_path = row.get('pkg_path', '')
         tool = row.get('tool', '')
-        domino_affected_release = row.get('release')
-        domino_branch = row.get('Domino_branch')
+        domino_affected_release=row.get('release')
+        domino_branch=row.get('Domino_branch')
 
         if cve and pkg_name:
             title = cve + ": " + pkg_name + " - " + pkg_version
@@ -43,16 +43,9 @@ class CombinedCSVParser(object):
         else:
             cvssv3_score_bool = False
 
-        # if cve and 'prisma-' in cve.lower():
-        #     out_of_scope_bool = True
-        #     active_bool = False
-
-        # out_of_scope_bool = False
         active_bool = True
         if severity and cve and 'prisma-' not in cve.lower():
             if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
-                # out_of_scope_bool = False
-                # active_bool=True
 
                 if cvssv3_score_bool:
                     finding = Finding(
@@ -191,16 +184,16 @@ def convert_severity(severity):
 
 # class TwistlockDominoParser(object):
 # jfrog_twist_cli_domino
-class JfrogTwistCliDominoParser(object):
+class JfrogTwistCliDominoWithReleaseVersionParser(object):
 
     def get_scan_types(self):
-        return ["Jfrog-Twist cli Domino Image Scan"]
+        return ["Jfrog-Twist Scan with release version"]
 
     def get_label_for_scan_types(self, scan_type):
-        return "Jfrog-Twist cli Domino Image Scan"
+        return "Jfrog-Twist Scan with release version"
 
     def get_description_for_scan_types(self, scan_type):
-        return "Scan output of Jfrog Twistlockv- CSV."
+        return "Scan output of Jfrog Twistlock CSV with release version"
 
     def get_findings(self, filename, test):
 
