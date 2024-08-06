@@ -1253,7 +1253,7 @@ HASHCODE_ALLOWS_NULL_CWE = {
 HASHCODE_ALLOWED_FIELDS = ['title', 'cwe', 'vulnerability_ids', 'line', 'file_path', 'component_name', 'component_version', 'description', 'endpoints', 'unique_id_from_tool', 'severity', 'vuln_id_from_tool','service','cve','steps_to_reproduce']
 
 # Adding fields to the hash_code calculation regardless of the previous settings
-HASH_CODE_FIELDS_ALWAYS = ['x']
+HASH_CODE_FIELDS_ALWAYS = ['service']
 
 # ------------------------------------
 # Deduplication configuration
