@@ -256,7 +256,8 @@ class DojoDefaultReImporter(object):
         untouched = set(unchanged_items) - set(to_mitigate) - set(new_items)
 
         if is_finding_groups_enabled() and push_to_jira:
-            for finding_group in set([finding.finding_group for finding in reactivated_items + unchanged_items + new_items if finding.finding_group is not None]):
+            # for finding_group in set([finding.finding_group for finding in reactivated_items + unchanged_items + new_items if finding.finding_group is not None]):
+            for finding_group in set([finding.finding_group for finding in reactivated_items + new_items if finding.finding_group is not None]):
                 jira_helper.push_to_jira(finding_group)
         sync = kwargs.get('sync', False)
         if not sync:
