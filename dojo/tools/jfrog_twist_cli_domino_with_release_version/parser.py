@@ -44,7 +44,7 @@ class CombinedCSVParser(object):
             cvssv3_score_bool = False
 
         active_bool = True
-        if cve.lower().strip()=='CVE-2024-10979':
+        if cve.lower().strip()=='cve-2024-10979':
             severity='High'
         if severity and cve and 'prisma-' not in cve.lower():
             if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
