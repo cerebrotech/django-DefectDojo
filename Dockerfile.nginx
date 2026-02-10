@@ -39,14 +39,18 @@ ENV \
   # This will point yarn to whatever version of node you decide to use
   # due to the use of nodejs instead of node name in some distros
   node="nodejs"
+
+#we will install node using nvm, it doesn't install with apt anymore
 RUN \
-  apt-get -y update && \
-  apt-get -y install --no-install-recommends apt-transport-https ca-certificates curl wget gnupg && \
-  curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add --no-tty - && \
-  echo 'deb https://deb.nodesource.com/node_14.x bullseye main' > /etc/apt/sources.list.d/nodesource.list && \
-  echo 'deb-src https://deb.nodesource.com/node_14.x bullseye main' >> /etc/apt/sources.list.d/nodesource.list && \
-  apt-get update -y -o Dir::Etc::sourcelist="sources.list.d/nodesource.list" \
-  -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" && \
+    apt-get -y update && \
+    apt-get -y install --no-install-recommends apt-transport-https ca-certificates curl wget gnupg && \
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && \
+    export NVM_DIR="$HOME/.nvm" && \
+    . "$NVM_DIR/nvm.sh" && \
+    nvm install 14 && \
+    nvm use 14 && \
+    node -v
+RUN \
   curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
   wget https://github.com/yarnpkg/yarn/releases/download/v1.22.10/yarn_1.22.10_all.deb && \
   dpkg -i yarn_1.22.10_all.deb && \
