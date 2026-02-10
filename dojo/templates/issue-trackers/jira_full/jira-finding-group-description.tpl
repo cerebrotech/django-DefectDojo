@@ -21,11 +21,8 @@ Data Imported on : {{finding_group.test.updated}}
 
 {% for group in release_groups %}
 h3. Domino Release {{ group.grouper|jiraencode }}
-
 || ID || Severity || CVE || Component || Version || Status || Fixed In || File Path || Date First Found || Vuln Type || Tool || Domino Release ||
-{% for finding in group.list %}
-| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}}  | {{finding.steps_to_reproduce}} |
+{% for finding in group.list %}| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
 {% endfor %}
-
 {% endfor %}
 {% endwith %}
