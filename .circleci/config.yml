@@ -5,16 +5,21 @@ commands:
   setup:
     steps:
       - checkout
-      - run:
-          name: setup Qemu
-          command: |
-            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+#      - run:
+#          name: setup Qemu
+#          command: |
+#            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - run:
           name: Create builder
           command: |
             export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker context create multi-arch-build
-            docker buildx create --use multi-arch-build
+            docker buildx version
+            docker context create multi-arch-build || true
+            docker buildx create --use multi-arch-build || docker buildx use multi-arch-build
+            docker buildx inspect --bootstrap
+#            docker context create multi-arch-build
+#            docker buildx create --use multi-arch-build
+
 
 login_to_docker_registries: &login_to_docker_registries
   run:
@@ -64,14 +69,14 @@ jobs:
       - run:
           name: "Building Django container"
           command: |
-            DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --push --platform linux/arm64,linux/amd64 -t quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.${CIRCLE_SHA1} -f Dockerfile.django .
+            DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --push --platform linux/amd64 -t quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.${CIRCLE_SHA1} -f Dockerfile.django .
             #docker push quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.${CIRCLE_SHA1}
             #docker tag quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.${CIRCLE_SHA1} quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.latest
             #docker push quay.io/domino/defectdojo-django:${CIRCLE_BRANCH}.latest
       - run:
           name: "Building Nginx container"
           command: |
-            DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --push --platform linux/arm64,linux/amd64 -t quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.${CIRCLE_SHA1} -f Dockerfile.nginx .
+            DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --push --platform linux/amd64 -t quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.${CIRCLE_SHA1} -f Dockerfile.nginx .
             #docker push quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.${CIRCLE_SHA1}
             #docker tag  quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.${CIRCLE_SHA1} quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.latest
             #docker push quay.io/domino/defectdojo-nginx:${CIRCLE_BRANCH}.latest
