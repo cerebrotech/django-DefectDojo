@@ -556,7 +556,27 @@ def jira_description(obj):
         kwargs['finding'] = obj
     elif isinstance(obj, Finding_Group):
         kwargs['finding_group'] = obj
-        kwargs['findings'] = obj.findings.all().order_by('steps_to_reproduce')
+        # kwargs['findings'] = obj.findings.all().order_by('steps_to_reproduce')
+
+        # Pull findings once (ordering optional)
+        findings = list(obj.findings.all())
+        kwargs["findings"] = findings
+
+        # Build a unique list of Domino Releases from steps_to_reproduce
+        seen = set()
+        domino_releases = []
+        for f in findings:
+            rel = (f.steps_to_reproduce or "").strip()
+            if not rel:
+                rel = "Unknown"
+            if rel not in seen:
+                seen.add(rel)
+                domino_releases.append(rel)
+
+        kwargs["domino_releases"] = domino_releases
+
+        # Your template references `finding.test...` for URLs, so provide one Finding
+        kwargs["finding"] = findings[0] if findings else None
 
     description = render_to_string(template, kwargs)
     logger.debug('rendered description: %s', description)
