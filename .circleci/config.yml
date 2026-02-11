@@ -43,6 +43,23 @@ jobs:
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - setup
+      - run:
+          name: Add 4GB swap (stabilize GCC/QEMU builds)
+          command: |
+            set -euxo pipefail
+            
+            echo "Memory before swap:"
+            free -h || true
+            
+            # Create 4GB swap file
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            
+            echo "Memory after swap:"
+            free -h
+            swapon --show
       - *login_to_docker_registries
       - run:
           name: "Building Django container"
