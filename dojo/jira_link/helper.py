@@ -556,6 +556,7 @@ def jira_description(obj):
         kwargs['finding'] = obj
     elif isinstance(obj, Finding_Group):
         kwargs['finding_group'] = obj
+        kwargs['findings'] = obj.findings.all().order_by('steps_to_reproduce')
 
     description = render_to_string(template, kwargs)
     logger.debug('rendered description: %s', description)
