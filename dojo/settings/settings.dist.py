@@ -1393,6 +1393,14 @@ JIRA_ISSUE_TYPE_CHOICES_CONFIG = (
 
 JIRA_SSL_VERIFY = env('DD_JIRA_SSL_VERIFY')
 
+#$celery limits to prevent Jira rate limiting
+CELERY_TASK_ANNOTATIONS = {
+    'dojo.jira_link.helper.add_jira_issue_for_finding': {'rate_limit': '10/m'},
+    'dojo.jira_link.helper.add_jira_issue_for_finding_group': {'rate_limit': '10/m'},
+    'dojo.jira_link.helper.update_jira_issue_for_finding': {'rate_limit': '10/m'},
+    'dojo.jira_link.helper.update_jira_issue_for_finding_group': {'rate_limit': '10/m'},
+}
+
 # ------------------------------------------------------------------------------
 # LOGGING
 # ------------------------------------------------------------------------------
