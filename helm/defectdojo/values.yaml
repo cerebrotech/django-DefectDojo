@@ -142,6 +142,28 @@ celery:
       # concurrency: 8
       # prefetch_multiplier: 128
 
+  # Dedicated worker pod for the 'jira' queue. Isolates Jira push tasks
+  # (which are rate-limited by Jira Cloud) from the default queue so that
+  # post_process_finding_save and other tasks aren't blocked behind them.
+  # Keep replicas low (typically 1) so Jira API calls remain serialized.
+  workerJira:
+    enabled: true
+    annotations: {}
+    affinity: {}
+    nodeSelector: {}
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+    tolerations: []
+    # Comma-separated list of queues this worker consumes. Must match
+    # CELERY_TASK_ROUTES queue names in dojo/settings/settings.dist.py.
+    queues: jira
+
   # A list of extra volumes to mount. This
   # is useful for bringing in extra data that can be referenced by other configurations
   # at a well known path, such as local_settings. The

@@ -29,6 +29,12 @@ if [ "${DD_CELERY_WORKER_POOL_TYPE}" = "prefork" ]; then
     --prefetch-multiplier=${DD_CELERY_WORKER_PREFETCH_MULTIPLIER}"
 fi
 
+# Restrict this worker to a specific queue (or comma-separated list) when set.
+# Unset = consume the default queue. Used for the dedicated 'jira' queue worker.
+if [ -n "${DD_CELERY_WORKER_QUEUES}" ]; then
+  EXTRA_PARAMS="${EXTRA_PARAMS} --queues=${DD_CELERY_WORKER_QUEUES}"
+fi
+
 # do the check with Django stack
 python3 manage.py check
 

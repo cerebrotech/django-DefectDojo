@@ -1401,6 +1401,17 @@ CELERY_TASK_ANNOTATIONS = {
     'dojo.jira_link.helper.update_jira_issue_for_finding_group': {'rate_limit': '10/m'},
 }
 
+# Route Jira push tasks to a dedicated queue so they don't block other tasks
+# (e.g. post_process_finding_save) when Jira rate-limits us during bulk imports.
+# A separate Celery worker consumes the 'jira' queue.
+CELERY_TASK_DEFAULT_QUEUE = 'celery'
+CELERY_TASK_ROUTES = {
+    'dojo.jira_link.helper.add_jira_issue_for_finding': {'queue': 'jira'},
+    'dojo.jira_link.helper.add_jira_issue_for_finding_group': {'queue': 'jira'},
+    'dojo.jira_link.helper.update_jira_issue_for_finding': {'queue': 'jira'},
+    'dojo.jira_link.helper.update_jira_issue_for_finding_group': {'queue': 'jira'},
+}
+
 # ------------------------------------------------------------------------------
 # LOGGING
 # ------------------------------------------------------------------------------
