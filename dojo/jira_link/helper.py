@@ -17,11 +17,49 @@ from dojo.notifications.helper import create_notification
 from django.contrib import messages
 from dojo.celery import app
 from dojo.decorators import dojo_async_task, dojo_model_from_id, dojo_model_to_id
+from dojo.jira_link import rate_limit as jira_rate_limit
 from dojo.utils import truncate_with_dots, prod_name, get_file_images
 from django.urls import reverse
 from dojo.forms import JIRAProjectForm, JIRAEngagementForm
 
 logger = logging.getLogger(__name__)
+
+
+class JiraRateLimited(JIRAError):
+    """Raised when Jira returns 429 or a shared cooldown is active.
+
+    Subclass of JIRAError so existing `except JIRAError` handlers catch it
+    naturally. Carries `retry_after` (seconds) used by celery tasks to
+    schedule a retry.
+    """
+    def __init__(self, retry_after):
+        self.retry_after = int(retry_after)
+        super().__init__(
+            text='Jira rate-limited; retry after {}s'.format(self.retry_after),
+            status_code=429,
+        )
+
+
+def _in_celery_async_context(task_self):
+    """True if running inside a real celery worker (vs sync direct call).
+
+    `dojo_async_task` has a `sync=True` path that calls the task in-process
+    with no celery worker context — in that case task_self.request.id is
+    None and `self.retry()` would crash.
+    """
+    req = getattr(task_self, 'request', None)
+    return req is not None and getattr(req, 'id', None) is not None
+
+
+def _extract_retry_after(jira_error):
+    """Pull the Retry-After header (seconds) from a JIRAError, defaulting to 60."""
+    try:
+        if jira_error.response is not None:
+            val = jira_error.response.headers.get('Retry-After', 60)
+            return max(1, int(val))
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return 60
 
 RESOLVED_STATUS = [
     'Inactive',
@@ -653,18 +691,28 @@ def add_issues_to_epic(jira, obj, epic_id, issue_keys, ignore_epics=True):
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
-@dojo_model_from_id
-def add_jira_issue_for_finding(finding, *args, **kwargs):
-    return add_jira_issue(finding, *args, **kwargs)
+@app.task(bind=True, max_retries=10)
+@dojo_model_from_id(parameter=1)
+def add_jira_issue_for_finding(self, finding, *args, **kwargs):
+    try:
+        return add_jira_issue(finding, *args, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
 
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
-@dojo_model_from_id(model=Finding_Group)
-def add_jira_issue_for_finding_group(finding_group, *args, **kwargs):
-    return add_jira_issue(finding_group, *args, **kwargs)
+@app.task(bind=True, max_retries=10)
+@dojo_model_from_id(model=Finding_Group, parameter=1)
+def add_jira_issue_for_finding_group(self, finding_group, *args, **kwargs):
+    try:
+        return add_jira_issue(finding_group, *args, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
 
 
 def add_jira_issue(obj, *args, **kwargs):
@@ -672,6 +720,13 @@ def add_jira_issue(obj, *args, **kwargs):
 
     if not is_jira_enabled():
         return False
+
+    cooldown = jira_rate_limit.cooldown_remaining()
+    if cooldown > 0:
+        countdown = jira_rate_limit.countdown_with_jitter(cooldown)
+        logger.info('jira cooldown active (%ds remaining); deferring add for %s by %ds',
+                    cooldown, to_str_typed(obj), countdown)
+        raise JiraRateLimited(countdown)
 
     if not is_jira_configured_and_enabled(obj):
         message = 'Object %s cannot be pushed to JIRA as there is no JIRA configuration for %s.' % (obj.id, to_str_typed(obj))
@@ -808,6 +863,13 @@ def add_jira_issue(obj, *args, **kwargs):
         log_jira_alert(str(e), obj)
         return False
     except JIRAError as e:
+        if e.status_code == 429:
+            retry_after = _extract_retry_after(e)
+            jira_rate_limit.arm_cooldown(retry_after)
+            countdown = jira_rate_limit.countdown_with_jitter(retry_after)
+            logger.warning('jira 429 on add for %s; armed cooldown %ds, retrying in %ds',
+                           to_str_typed(obj), retry_after, countdown)
+            raise JiraRateLimited(countdown)
         logger.exception(e)
         logger.error("jira_meta for project: %s and url: %s meta: %s", jira_project.project_key, jira_project.jira_instance.url, json.dumps(meta, indent=4))  # this is None safe
         log_jira_alert(e.text, obj)
@@ -818,18 +880,28 @@ def add_jira_issue(obj, *args, **kwargs):
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
-@dojo_model_from_id
-def update_jira_issue_for_finding(finding, *args, **kwargs):
-    return update_jira_issue(finding, *args, **kwargs)
+@app.task(bind=True, max_retries=10)
+@dojo_model_from_id(parameter=1)
+def update_jira_issue_for_finding(self, finding, *args, **kwargs):
+    try:
+        return update_jira_issue(finding, *args, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
 
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
-@dojo_model_from_id(model=Finding_Group)
-def update_jira_issue_for_finding_group(finding_group, *args, **kwargs):
-    return update_jira_issue(finding_group, *args, **kwargs)
+@app.task(bind=True, max_retries=10)
+@dojo_model_from_id(model=Finding_Group, parameter=1)
+def update_jira_issue_for_finding_group(self, finding_group, *args, **kwargs):
+    try:
+        return update_jira_issue(finding_group, *args, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
 
 
 def update_jira_issue(obj, *args, **kwargs):
@@ -837,6 +909,13 @@ def update_jira_issue(obj, *args, **kwargs):
 
     if not is_jira_enabled():
         return False
+
+    cooldown = jira_rate_limit.cooldown_remaining()
+    if cooldown > 0:
+        countdown = jira_rate_limit.countdown_with_jitter(cooldown)
+        logger.info('jira cooldown active (%ds remaining); deferring update for %s by %ds',
+                    cooldown, to_str_typed(obj), countdown)
+        raise JiraRateLimited(countdown)
 
     jira_project = get_jira_project(obj)
     jira_instance = get_jira_instance(obj)
@@ -929,6 +1008,13 @@ def update_jira_issue(obj, *args, **kwargs):
         return True
 
     except JIRAError as e:
+        if e.status_code == 429:
+            retry_after = _extract_retry_after(e)
+            jira_rate_limit.arm_cooldown(retry_after)
+            countdown = jira_rate_limit.countdown_with_jitter(retry_after)
+            logger.warning('jira 429 on update for %s; armed cooldown %ds, retrying in %ds',
+                           to_str_typed(obj), retry_after, countdown)
+            raise JiraRateLimited(countdown)
         logger.exception(e)
         logger.error("jira_meta for project: %s and url: %s meta: %s", jira_project.project_key, jira_project.jira_instance.url, json.dumps(meta, indent=4))  # this is None safe
         log_jira_alert(e.text, obj)
