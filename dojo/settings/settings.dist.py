@@ -62,6 +62,12 @@ env = environ.Env(
     DD_CELERY_BROKER_PARAMS=(str, ''),
     DD_CELERY_TASK_IGNORE_RESULT=(bool, True),
     DD_CELERY_RESULT_BACKEND=(str, 'django-db'),
+    # Redis connection for Jira rate-limit cooldown (shared cross-worker state)
+    DD_JIRA_REDIS_SCHEME=(str, 'redis'),
+    DD_JIRA_REDIS_HOST=(str, ''),
+    DD_JIRA_REDIS_PORT=(int, 6379),
+    DD_JIRA_REDIS_DB=(int, 1),
+    DD_JIRA_REDIS_PASSWORD=(str, ''),
     DD_CELERY_RESULT_EXPIRES=(int, 86400),
     DD_CELERY_BEAT_SCHEDULE_FILENAME=(str, root('dojo.celery.beat.db')),
     DD_CELERY_TASK_SERIALIZER=(str, 'pickle'),
@@ -1393,13 +1399,11 @@ JIRA_ISSUE_TYPE_CHOICES_CONFIG = (
 
 JIRA_SSL_VERIFY = env('DD_JIRA_SSL_VERIFY')
 
-#$celery limits to prevent Jira rate limiting
-CELERY_TASK_ANNOTATIONS = {
-    'dojo.jira_link.helper.add_jira_issue_for_finding': {'rate_limit': '10/m'},
-    'dojo.jira_link.helper.add_jira_issue_for_finding_group': {'rate_limit': '10/m'},
-    'dojo.jira_link.helper.update_jira_issue_for_finding': {'rate_limit': '10/m'},
-    'dojo.jira_link.helper.update_jira_issue_for_finding_group': {'rate_limit': '10/m'},
-}
+# Jira rate-limit handling: throttling is feedback-driven via a shared Redis
+# cooldown (see dojo/jira_link/rate_limit.py). When Jira returns 429, any
+# worker arms the cooldown and all workers respect it. Static per-worker
+# `rate_limit` annotations are intentionally NOT used — they cap throughput
+# even when Jira is healthy and don't coordinate across workers.
 
 # Route Jira push tasks to a dedicated queue so they don't block other tasks
 # (e.g. post_process_finding_save) when Jira rate-limits us during bulk imports.
@@ -1411,6 +1415,18 @@ CELERY_TASK_ROUTES = {
     'dojo.jira_link.helper.update_jira_issue_for_finding': {'queue': 'jira'},
     'dojo.jira_link.helper.update_jira_issue_for_finding_group': {'queue': 'jira'},
 }
+
+# Redis URL used by dojo/jira_link/rate_limit.py for the Jira cooldown key.
+# Empty host (default) disables the feature; the helper module falls through
+# to a no-op state. In helm deployments DD_JIRA_REDIS_HOST is populated by
+# the configmap when redis.enabled=true.
+JIRA_RATE_LIMIT_REDIS_URL = '{}://:{}@{}:{}/{}'.format(
+    env('DD_JIRA_REDIS_SCHEME'),
+    env('DD_JIRA_REDIS_PASSWORD'),
+    env('DD_JIRA_REDIS_HOST'),
+    env('DD_JIRA_REDIS_PORT'),
+    env('DD_JIRA_REDIS_DB'),
+) if env('DD_JIRA_REDIS_HOST') else ''
 
 # ------------------------------------------------------------------------------
 # LOGGING
