@@ -151,7 +151,7 @@ celery:
     annotations: {}
     affinity: {}
     nodeSelector: {}
-    replicas: 1
+    replicas: 6
     resources:
       requests:
         cpu: 100m
