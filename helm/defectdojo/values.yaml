@@ -479,7 +479,9 @@ rabbitmq:
 
 # For more advance options check the bitnami chart documentation: https://github.com/bitnami/charts/tree/master/bitnami/redis
 redis:
-  enabled: false
+  # Enabled for Jira rate-limit cooldown (shared cross-worker state via Django cache).
+  # Not used as the celery broker (broker remains rabbitmq).
+  enabled: true
   transportEncryption:
     enabled: false
     params: ''
@@ -488,6 +490,9 @@ redis:
     existingSecretPasswordKey: redis-password
     password: ""
   architecture: standalone
+  # Redis DB index reserved for the Jira rate-limit cooldown. Other uses
+  # (e.g. if redis later becomes the celery broker) should pick a different db.
+  jiraRateLimitDb: "1"
   # To use an external Redis instance, set enabled to false and uncomment
   # the line below:
   # redisServer: myrediscluster

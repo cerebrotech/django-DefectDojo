@@ -195,6 +195,13 @@ spec:
             secretKeyRef:
               name: {{ $fullName }}
               key: DD_SECRET_KEY
+        {{- if .Values.redis.enabled }}
+        - name: DD_JIRA_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.redis.auth.existingSecret }}
+              key: {{ .Values.redis.auth.existingSecretPasswordKey }}
+        {{- end }}
         - name: DD_CREDENTIAL_AES_256_KEY
           valueFrom:
             secretKeyRef:
