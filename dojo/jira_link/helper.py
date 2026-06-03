@@ -5,6 +5,7 @@ import io
 import json
 import requests
 from django.conf import settings
+from django.db import transaction
 from django.template import TemplateDoesNotExist
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -745,135 +746,144 @@ def add_jira_issue(obj, *args, **kwargs):
         return False
     logger.debug('Trying to create a new JIRA issue for %s...', to_str_typed(obj))
     meta = None
-    try:
-        JIRAError.log_to_tempfile = False
-        jira = get_jira_connection(jira_instance)
+    # Idempotency: row-lock the target object + re-check has_jira_issue before
+    # calling Jira. If a concurrent worker is already creating the issue, the
+    # second worker blocks here, then sees the JIRA_Issue row already exists
+    # on entry and exits without a duplicate Jira API call.
+    with transaction.atomic():
+        locked_obj = type(obj).objects.select_for_update().get(pk=obj.id)
+        if locked_obj.has_jira_issue:
+            logger.info('jira issue already exists for %s (concurrent add); skipping duplicate creation', to_str_typed(obj))
+            return True
+        try:
+            JIRAError.log_to_tempfile = False
+            jira = get_jira_connection(jira_instance)
 
-        fields = {
-                'project': {
-                    'key': jira_project.project_key
-                },
-                'summary': jira_summary(obj),
-                'description': jira_description(obj),
-                'issuetype': {
-                    'name': jira_instance.default_issue_type
-                },
-        }
-
-        if jira_project.component:
-            fields['components'] = [
-                    {
-                        'name': jira_project.component
+            fields = {
+                    'project': {
+                        'key': jira_project.project_key
                     },
-            ]
+                    'summary': jira_summary(obj),
+                    'description': jira_description(obj),
+                    'issuetype': {
+                        'name': jira_instance.default_issue_type
+                    },
+            }
 
-        # Custom fields to specify
-        if jira_project.custom_fields:
-            fields.update(jira_project.custom_fields)
+            if jira_project.component:
+                fields['components'] = [
+                        {
+                            'name': jira_project.component
+                        },
+                ]
 
-        # populate duedate field, but only if it's available for this project + issuetype
-        if not meta:
-            meta = get_jira_meta(jira, jira_project)
+            # Custom fields to specify
+            if jira_project.custom_fields:
+                fields.update(jira_project.custom_fields)
 
-        epic_name_field = get_epic_name_field_name(jira_instance)
-        if epic_name_field in meta['projects'][0]['issuetypes'][0]['fields']:
-            # epic name is present in this issuetype
-            # epic name is always mandatory in jira, so we populate it
-            fields[epic_name_field] = fields['summary']
+            # populate duedate field, but only if it's available for this project + issuetype
+            if not meta:
+                meta = get_jira_meta(jira, jira_project)
 
-        if 'priority' in meta['projects'][0]['issuetypes'][0]['fields']:
-            fields['priority'] = {
-                                    'name': jira_priority(obj)
-                                }
+            epic_name_field = get_epic_name_field_name(jira_instance)
+            if epic_name_field in meta['projects'][0]['issuetypes'][0]['fields']:
+                # epic name is present in this issuetype
+                # epic name is always mandatory in jira, so we populate it
+                fields[epic_name_field] = fields['summary']
 
-        labels = get_labels(obj)
-        tags = get_tags(obj)
-        jira_labels = labels + tags
-        if jira_labels:
-            # de-dup
-            jira_labels = list(dict.fromkeys(jira_labels))
-            if 'labels' in meta['projects'][0]['issuetypes'][0]['fields']:
-                fields['labels'] = jira_labels
+            if 'priority' in meta['projects'][0]['issuetypes'][0]['fields']:
+                fields['priority'] = {
+                                        'name': jira_priority(obj)
+                                    }
 
-        if System_Settings.objects.get().enable_finding_sla:
+            labels = get_labels(obj)
+            tags = get_tags(obj)
+            jira_labels = labels + tags
+            if jira_labels:
+                # de-dup
+                jira_labels = list(dict.fromkeys(jira_labels))
+                if 'labels' in meta['projects'][0]['issuetypes'][0]['fields']:
+                    fields['labels'] = jira_labels
 
-            if 'duedate' in meta['projects'][0]['issuetypes'][0]['fields']:
-                # jira wants YYYY-MM-DD
-                duedate = obj.sla_deadline()
-                if duedate:
-                    fields['duedate'] = duedate.strftime('%Y-%m-%d')
+            if System_Settings.objects.get().enable_finding_sla:
 
-        if not meta:
-            meta = get_jira_meta(jira, jira_project)
+                if 'duedate' in meta['projects'][0]['issuetypes'][0]['fields']:
+                    # jira wants YYYY-MM-DD
+                    duedate = obj.sla_deadline()
+                    if duedate:
+                        fields['duedate'] = duedate.strftime('%Y-%m-%d')
 
-        if 'environment' in meta['projects'][0]['issuetypes'][0]['fields']:
-            fields['environment'] = jira_environment(obj)
+            if not meta:
+                meta = get_jira_meta(jira, jira_project)
 
-        logger.debug('sending fields to JIRA: %s', fields)
+            if 'environment' in meta['projects'][0]['issuetypes'][0]['fields']:
+                fields['environment'] = jira_environment(obj)
 
-        new_issue = jira.create_issue(fields)
+            logger.debug('sending fields to JIRA: %s', fields)
 
-        # Upload dojo finding screenshots to Jira
-        findings = [obj]
-        if type(obj) == Finding_Group:
-            findings = obj.findings.all()
+            new_issue = jira.create_issue(fields)
 
-        for find in findings:
-            for pic in get_file_images(find):
-                # It doesn't look like the celery cotainer has anything in the media
-                # folder. Has this feature ever worked?
-                try:
-                    jira_attachment(
-                        find, jira, new_issue,
-                        settings.MEDIA_ROOT + '/' + pic)
-                except FileNotFoundError as e:
-                    logger.info(e)
+            # Upload dojo finding screenshots to Jira
+            findings = [obj]
+            if type(obj) == Finding_Group:
+                findings = obj.findings.all()
 
-        if jira_project.enable_engagement_epic_mapping:
-            eng = obj.test.engagement
-            logger.debug('Adding to EPIC Map: %s', eng.name)
-            epic = get_jira_issue(eng)
-            if epic:
-                add_issues_to_epic(jira, obj, epic_id=epic.jira_id, issue_keys=[str(new_issue.id)], ignore_epics=True)
-            else:
-                logger.info('The following EPIC does not exist: %s', eng.name)
+            for find in findings:
+                for pic in get_file_images(find):
+                    # It doesn't look like the celery cotainer has anything in the media
+                    # folder. Has this feature ever worked?
+                    try:
+                        jira_attachment(
+                            find, jira, new_issue,
+                            settings.MEDIA_ROOT + '/' + pic)
+                    except FileNotFoundError as e:
+                        logger.info(e)
 
-        # only link the new issue if it was successfully created, incl attachments and epic link
-        logger.debug('saving JIRA_Issue for %s finding %s', new_issue.key, obj.id)
-        j_issue = JIRA_Issue(
-            jira_id=new_issue.id, jira_key=new_issue.key, jira_project=jira_project)
-        j_issue.set_obj(obj)
+            if jira_project.enable_engagement_epic_mapping:
+                eng = obj.test.engagement
+                logger.debug('Adding to EPIC Map: %s', eng.name)
+                epic = get_jira_issue(eng)
+                if epic:
+                    add_issues_to_epic(jira, obj, epic_id=epic.jira_id, issue_keys=[str(new_issue.id)], ignore_epics=True)
+                else:
+                    logger.info('The following EPIC does not exist: %s', eng.name)
 
-        j_issue.jira_creation = timezone.now()
-        j_issue.jira_change = timezone.now()
-        j_issue.save()
-        issue = jira.issue(new_issue.id)
+            # only link the new issue if it was successfully created, incl attachments and epic link
+            logger.debug('saving JIRA_Issue for %s finding %s', new_issue.key, obj.id)
+            j_issue = JIRA_Issue(
+                jira_id=new_issue.id, jira_key=new_issue.key, jira_project=jira_project)
+            j_issue.set_obj(obj)
 
-        logger.info('Created the following jira issue for %d:%s', obj.id, to_str_typed(obj))
+            j_issue.jira_creation = timezone.now()
+            j_issue.jira_change = timezone.now()
+            j_issue.save()
+            issue = jira.issue(new_issue.id)
 
-        # Add any notes that already exist in the finding to the JIRA
-        for find in findings:
-            if find.notes.all():
-                for note in find.notes.all().reverse():
-                    add_comment(obj, note)
+            logger.info('Created the following jira issue for %d:%s', obj.id, to_str_typed(obj))
 
-        return True
-    except TemplateDoesNotExist as e:
-        logger.exception(e)
-        log_jira_alert(str(e), obj)
-        return False
-    except JIRAError as e:
-        if e.status_code == 429:
-            retry_after = _extract_retry_after(e)
-            jira_rate_limit.arm_cooldown(retry_after)
-            countdown = jira_rate_limit.countdown_with_jitter(retry_after)
-            logger.warning('jira 429 on add for %s; armed cooldown %ds, retrying in %ds',
-                           to_str_typed(obj), retry_after, countdown)
-            raise JiraRateLimited(countdown)
-        logger.exception(e)
-        logger.error("jira_meta for project: %s and url: %s meta: %s", jira_project.project_key, jira_project.jira_instance.url, json.dumps(meta, indent=4))  # this is None safe
-        log_jira_alert(e.text, obj)
-        return False
+            # Add any notes that already exist in the finding to the JIRA
+            for find in findings:
+                if find.notes.all():
+                    for note in find.notes.all().reverse():
+                        add_comment(obj, note)
+
+            return True
+        except TemplateDoesNotExist as e:
+            logger.exception(e)
+            log_jira_alert(str(e), obj)
+            return False
+        except JIRAError as e:
+            if e.status_code == 429:
+                retry_after = _extract_retry_after(e)
+                jira_rate_limit.arm_cooldown(retry_after)
+                countdown = jira_rate_limit.countdown_with_jitter(retry_after)
+                logger.warning('jira 429 on add for %s; armed cooldown %ds, retrying in %ds',
+                               to_str_typed(obj), retry_after, countdown)
+                raise JiraRateLimited(countdown)
+            logger.exception(e)
+            logger.error("jira_meta for project: %s and url: %s meta: %s", jira_project.project_key, jira_project.jira_instance.url, json.dumps(meta, indent=4))  # this is None safe
+            log_jira_alert(e.text, obj)
+            return False
 
 
 # we need two separate celery tasks due to the decorators we're using to map to/from ids
