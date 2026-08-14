@@ -364,16 +364,32 @@ class DojoDefaultReImporter(object):
                 reactivated_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_reactivated_findings]
                 findings_to_mitigate += [next(serializers.deserialize("json", finding)).object for finding in serial_findings_to_mitigate]
                 untouched_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_untouched_findings]
-            # Different chunks are processed independently and each does its own dedup against
-            # a snapshot of existing findings taken at chunk start. If the uploaded report has the
-            # same finding represented more than once (see #3958) and those duplicates land in
-            # different chunks, the same underlying Finding can come back in more than one chunk's
-            # results. Dedup across chunks here so a finding is only counted/notified/recorded once
-            # (Test_Import_Finding_Action has a unique constraint on (test_import, finding)).
+            # Different chunks are processed independently, each against its own live view of
+            # the database, so the same finding.id can come back from more than one chunk's
+            # results: duplicate entries in the uploaded report (see #3958) can cause two chunks
+            # to both touch the same finding, and every chunk computes "to mitigate" against the
+            # *entire* existing finding set minus only what it itself touched - so a finding
+            # legitimately handled by one chunk looks orphaned to every other chunk that didn't
+            # happen to see it. Test_Import_Finding_Action has a unique constraint on
+            # (test_import, finding), so each finding must end up in exactly one of the four
+            # buckets below before it reaches update_import_history / close_old_findings.
+            # Priority when a finding lands in more than one bucket: new > reactivated > untouched
+            # > to_mitigate. The first three reflect real work already saved by the chunk that
+            # processed them; "to mitigate" is the least trustworthy bucket (a chunk's absence of
+            # evidence isn't evidence the finding is gone) so it loses every tiebreak and is only
+            # trusted for findings no other chunk claimed at all.
+            new_ids = {finding.id for finding in new_findings}
+            reactivated_findings = [finding for finding in reactivated_findings if finding.id not in new_ids]
+            reactivated_ids = {finding.id for finding in reactivated_findings}
+            untouched_findings = [finding for finding in untouched_findings if finding.id not in new_ids and finding.id not in reactivated_ids]
+
             new_findings = list({finding.id: finding for finding in new_findings}.values())
             reactivated_findings = list({finding.id: finding for finding in reactivated_findings}.values())
-            findings_to_mitigate = list({finding.id: finding for finding in findings_to_mitigate}.values())
             untouched_findings = list({finding.id: finding for finding in untouched_findings}.values())
+
+            touched_ids = new_ids | reactivated_ids | {finding.id for finding in untouched_findings}
+            findings_to_mitigate = list({finding.id: finding for finding in findings_to_mitigate
+                                         if finding.id not in touched_ids}.values())
             logger.debug('REIMPORT_SCAN: All Findings Collected')
             # Indicate that the test is not complete yet as endpoints will still be rolling in.
             test.percent_complete = 50
