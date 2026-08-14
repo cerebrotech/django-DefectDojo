@@ -109,7 +109,7 @@ celery:
     annotations: {}
     affinity: {}
     nodeSelector: {}
-    replicas: 1
+    replicas: 10
     resources:
       requests:
         cpu: 100m
@@ -123,24 +123,24 @@ celery:
     affinity: {}
     logLevel: INFO
     nodeSelector: {}
-    replicas: 1
+    replicas: 10
     resources:
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 500m
+        memory: 768Mi
       limits:
         cpu: 2000m
-        memory: 512Mi
+        memory: 2Gi
     tolerations: []
     app_settings:
-      pool_type: solo
+#      pool_type: solo
       # Performance improved celery worker config when needing to deal with a lot of findings (e.g deduplication ops)
       # Comment out the "solo" line, and uncomment the following lines.
-      # pool_type: prefork
-      # autoscale_min: 2
-      # autoscale_max: 8
-      # concurrency: 8
-      # prefetch_multiplier: 128
+       pool_type: prefork
+       autoscale_min: 2
+       autoscale_max: 4
+       concurrency: 4
+       prefetch_multiplier: 1
 
   # Dedicated worker pod for the 'jira' queue. Isolates Jira push tasks
   # (which are rate-limited by Jira Cloud) from the default queue so that
@@ -151,7 +151,7 @@ celery:
     annotations: {}
     affinity: {}
     nodeSelector: {}
-    replicas: 6
+    replicas: 5
     resources:
       requests:
         cpu: 100m
@@ -210,8 +210,7 @@ django:
        kubernetes.io/ingress.class: nginx
       # Depending on the size and complexity of your scans, you might want to increase the default ingress timeouts if you see repeated 504 Gateway Timeouts
        nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
-       nginx.ingress.kubernetes.io/proxy-send-timeout: "360:q
-       `:"
+       nginx.ingress.kubernetes.io/proxy-send-timeout: "360"
   nginx:
     tls:
       enabled: false
