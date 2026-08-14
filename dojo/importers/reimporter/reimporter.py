@@ -124,14 +124,15 @@ class DojoDefaultReImporter(object):
 
                     # Determine if this can be run async
                     if settings.ASYNC_FINDING_IMPORT:
-                        chunk_list = importer_utils.chunk_list(endpoint_statuses)
+                        endpoint_status_chunks = importer_utils.chunk_list(endpoint_statuses)
                         # If there is only one chunk, then do not bother with async
-                        if len(chunk_list) < 2:
+                        if len(endpoint_status_chunks) < 2:
                             reactivate_endpoint_status(endpoint_statuses, sync=True)
-                        logger.debug('IMPORT_SCAN: Split endpoints into ' + str(len(chunk_list)) + ' chunks of ' + str(chunk_list[0]))
-                        # First kick off all the workers
-                        for endpoint_status_list in chunk_list:
-                            reactivate_endpoint_status(endpoint_status_list, sync=False)
+                        else:
+                            logger.debug('IMPORT_SCAN: Split endpoints into ' + str(len(endpoint_status_chunks)) + ' chunks of ' + str(settings.ASYNC_FINDING_IMPORT_CHUNK_SIZE))
+                            # First kick off all the workers
+                            for endpoint_status_list in endpoint_status_chunks:
+                                reactivate_endpoint_status(endpoint_status_list, sync=False)
                     else:
                         reactivate_endpoint_status(endpoint_statuses, sync=True)
 
@@ -363,6 +364,16 @@ class DojoDefaultReImporter(object):
                 reactivated_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_reactivated_findings]
                 findings_to_mitigate += [next(serializers.deserialize("json", finding)).object for finding in serial_findings_to_mitigate]
                 untouched_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_untouched_findings]
+            # Different chunks are processed independently and each does its own dedup against
+            # a snapshot of existing findings taken at chunk start. If the uploaded report has the
+            # same finding represented more than once (see #3958) and those duplicates land in
+            # different chunks, the same underlying Finding can come back in more than one chunk's
+            # results. Dedup across chunks here so a finding is only counted/notified/recorded once
+            # (Test_Import_Finding_Action has a unique constraint on (test_import, finding)).
+            new_findings = list({finding.id: finding for finding in new_findings}.values())
+            reactivated_findings = list({finding.id: finding for finding in reactivated_findings}.values())
+            findings_to_mitigate = list({finding.id: finding for finding in findings_to_mitigate}.values())
+            untouched_findings = list({finding.id: finding for finding in untouched_findings}.values())
             logger.debug('REIMPORT_SCAN: All Findings Collected')
             # Indicate that the test is not complete yet as endpoints will still be rolling in.
             test.percent_complete = 50
