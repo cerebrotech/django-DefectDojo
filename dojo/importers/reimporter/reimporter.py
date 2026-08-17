@@ -324,10 +324,14 @@ class DojoDefaultReImporter(object):
 
         # Report which groups were touched instead of pushing here: reimport_scan combines this
         # with whatever groups the chunked processing touched, so each group is only pushed to
-        # JIRA once across the whole reimport instead of once per call site.
+        # JIRA once across the whole reimport instead of once per call site. Built from
+        # mitigated_findings (only findings that actually transitioned to mitigated in this run),
+        # not the full to_mitigate candidate list - to_mitigate also contains findings mitigated
+        # long ago that simply aren't in the current report and never will be again, so using it
+        # here would mark an already-fixed group as "touched" on every future reimport forever.
         touched_group_ids = []
         if is_finding_groups_enabled() and push_to_jira:
-            touched_group_ids = [finding.finding_group.id for finding in to_mitigate if finding.finding_group is not None]
+            touched_group_ids = [finding.finding_group.id for finding in mitigated_findings if finding.finding_group is not None]
 
         return mitigated_findings, touched_group_ids
 
