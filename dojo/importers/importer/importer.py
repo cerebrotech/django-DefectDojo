@@ -164,13 +164,23 @@ class DojoDefaultImporter(object):
             else:
                 item.save(push_to_jira=push_to_jira)
 
-        if is_finding_groups_enabled() and push_to_jira:
-            for finding_group in set([finding.finding_group for finding in new_findings if finding.finding_group is not None]):
-                jira_helper.push_to_jira(finding_group)
         sync = kwargs.get('sync', False)
+        touched_group_ids = []
+        if is_finding_groups_enabled() and push_to_jira:
+            touched_groups = set([finding.finding_group for finding in new_findings if finding.finding_group is not None])
+            if sync:
+                # Single authoritative call (whole report, no chunking): push now, same as always.
+                for finding_group in touched_groups:
+                    jira_helper.push_to_jira(finding_group)
+            else:
+                # One chunk among many: a group's members can be scattered across other chunks
+                # too, so pushing here would push the same group once per chunk that happens to
+                # touch it. Just report which groups were touched; import_scan pushes each one
+                # exactly once after combining every chunk's results.
+                touched_group_ids = [finding_group.id for finding_group in touched_groups]
         if not sync:
-            return [serializers.serialize('json', [finding, ]) for finding in new_findings]
-        return new_findings
+            return [serializers.serialize('json', [finding, ]) for finding in new_findings], touched_group_ids
+        return new_findings, touched_group_ids
 
     def close_old_findings(self, test, scan_date_time, user, push_to_jira=None, service=None):
         old_findings = []
@@ -223,11 +233,14 @@ class DojoDefaultImporter(object):
             else:
                 old_finding.save(dedupe_option=False, push_to_jira=push_to_jira)
 
+        # Report which groups were touched instead of pushing here: import_scan combines this
+        # with whatever groups the chunked processing touched, so each group is only pushed to
+        # JIRA once across the whole import instead of once per call site.
+        touched_group_ids = []
         if is_finding_groups_enabled() and push_to_jira:
-            for finding_group in set([finding.finding_group for finding in old_findings if finding.finding_group is not None]):
-                jira_helper.push_to_jira(finding_group)
+            touched_group_ids = [finding.finding_group.id for finding in old_findings if finding.finding_group is not None]
 
-        return old_findings
+        return old_findings, touched_group_ids
 
     def import_scan(self, scan, scan_type, engagement, lead, environment, active, verified, tags=None, minimum_severity=None,
                     user=None, endpoints_to_add=None, scan_date=None, version=None, branch_tag=None, build_id=None,
@@ -299,6 +312,7 @@ class DojoDefaultImporter(object):
 
         logger.debug('IMPORT_SCAN: Processing findings')
         new_findings = []
+        touched_group_ids = set()
         if settings.ASYNC_FINDING_IMPORT:
             chunk_list = importer_utils.chunk_list(parsed_findings)
             results_list = []
@@ -314,22 +328,33 @@ class DojoDefaultImporter(object):
             # After all tasks have been started, time to pull the results
             logger.info('IMPORT_SCAN: Collecting Findings')
             for results in results_list:
-                serial_new_findings = results.get()
+                serial_new_findings, chunk_touched_group_ids = results.get()
                 new_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_new_findings]
+                touched_group_ids.update(chunk_touched_group_ids)
             logger.info('IMPORT_SCAN: All Findings Collected')
             # Indicate that the test is not complete yet as endpoints will still be rolling in.
             test.percent_complete = 50
             test.save()
         else:
-            new_findings = self.process_parsed_findings(test, parsed_findings, scan_type, user, active,
+            new_findings, _touched_group_ids = self.process_parsed_findings(test, parsed_findings, scan_type, user, active,
                                                             verified, minimum_severity=minimum_severity,
                                                             endpoints_to_add=endpoints_to_add, push_to_jira=push_to_jira,
                                                             group_by=group_by, now=now, service=service, scan_date=scan_date, sync=True)
+            # Sync mode already pushed these groups directly above (it's the whole report in one
+            # call, no coordination needed) - nothing left to push here for that part.
 
         closed_findings = []
         if close_old_findings:
             logger.debug('IMPORT_SCAN: Closing findings no longer present in scan report')
-            closed_findings = self.close_old_findings(test, scan_date, user=user, push_to_jira=push_to_jira, service=service)
+            closed_findings, mitigate_group_ids = self.close_old_findings(test, scan_date, user=user, push_to_jira=push_to_jira, service=service)
+            touched_group_ids.update(mitigate_group_ids)
+
+        # Push every group touched anywhere in this import - by any chunk, or by
+        # close_old_findings - exactly once, now that we have the complete picture.
+        if touched_group_ids:
+            from dojo.models import Finding_Group
+            for finding_group in Finding_Group.objects.filter(id__in=touched_group_ids):
+                jira_helper.push_to_jira(finding_group)
 
         logger.debug('IMPORT_SCAN: Updating test/engagement timestamps')
         importer_utils.update_timestamps(test, version, branch_tag, build_id, commit_hash, now, scan_date)

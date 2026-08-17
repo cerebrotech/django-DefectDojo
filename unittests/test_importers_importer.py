@@ -78,7 +78,7 @@ class TestDojoDefaultImporter(DojoTestCase):
         active = True
         verified = True
         scan_date = None
-        new_findings = importer.process_parsed_findings(
+        new_findings, _touched_group_ids = importer.process_parsed_findings(
             test,
             parsed_findings,
             scan_type,
