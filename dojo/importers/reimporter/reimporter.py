@@ -8,7 +8,6 @@ from dojo.decorators import dojo_async_task
 from dojo.celery import app
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core import serializers
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from dojo.importers import utils as importer_utils
@@ -30,7 +29,13 @@ class DojoDefaultReImporter(object):
                                 endpoints_to_add=None, push_to_jira=None, group_by=None, now=timezone.now(), service=None, scan_date=None, **kwargs):
 
         items = parsed_findings
-        original_items = list(test.finding_set.all())
+        # When called per-chunk from the async path, computing "which existing findings were
+        # not touched" against the *entire* test's finding set is wrong (each chunk only sees
+        # its own slice, so it wrongly treats everything outside its slice as missing) and
+        # expensive (N chunks each fetch/serialize almost the whole test). Skip it here and let
+        # reimport_scan compute it once, globally, after all chunks are collected.
+        compute_mitigation_candidates = kwargs.get('compute_mitigation_candidates', True)
+        original_items = list(test.finding_set.all()) if compute_mitigation_candidates else []
         new_items = []
         mitigated_count = 0
         finding_count = 0
@@ -247,7 +252,8 @@ class DojoDefaultReImporter(object):
                 else:
                     finding.save(push_to_jira=push_to_jira)
 
-        to_mitigate = set(original_items) - set(reactivated_items) - set(unchanged_items)
+        to_mitigate = (set(original_items) - set(reactivated_items) - set(unchanged_items)
+                      if compute_mitigation_candidates else set())
         # due to #3958 we can have duplicates inside the same report
         # this could mean that a new finding is created and right after
         # that it is detected as the 'matched existing finding' for a
@@ -261,11 +267,14 @@ class DojoDefaultReImporter(object):
                 jira_helper.push_to_jira(finding_group)
         sync = kwargs.get('sync', False)
         if not sync:
-            serialized_new_items = [serializers.serialize('json', [finding, ]) for finding in new_items]
-            serialized_reactivated_items = [serializers.serialize('json', [finding, ]) for finding in reactivated_items]
-            serialized_to_mitigate = [serializers.serialize('json', [finding, ]) for finding in to_mitigate]
-            serialized_untouched = [serializers.serialize('json', [finding, ]) for finding in untouched]
-            return serialized_new_items, serialized_reactivated_items, serialized_to_mitigate, serialized_untouched
+            # Return plain finding IDs instead of JSON-serialized objects: everything here has
+            # already been saved to the database, so reimport_scan can cheaply re-fetch the real
+            # objects in bulk afterwards instead of paying to serialize/deserialize each one
+            # individually through the celery result backend.
+            return ([finding.id for finding in new_items],
+                    [finding.id for finding in reactivated_items],
+                    [finding.id for finding in to_mitigate],
+                    [finding.id for finding in untouched])
 
         return new_items, reactivated_items, to_mitigate, untouched
 
@@ -352,44 +361,45 @@ class DojoDefaultReImporter(object):
             for findings_list in chunk_list:
                 result = self.process_parsed_findings(test, findings_list, scan_type, user, active, verified,
                                                       minimum_severity=minimum_severity, endpoints_to_add=endpoints_to_add,
-                                                      push_to_jira=push_to_jira, group_by=group_by, now=now, service=service, scan_date=scan_date, sync=False)
+                                                      push_to_jira=push_to_jira, group_by=group_by, now=now, service=service, scan_date=scan_date,
+                                                      sync=False, compute_mitigation_candidates=False)
                 # Since I dont want to wait until the task is done right now, save the id
                 # So I can check on the task later
                 results_list += [result]
             # After all tasks have been started, time to pull the results
             logger.debug('REIMPORT_SCAN: Collecting Findings')
+            new_ids = set()
+            reactivated_ids = set()
+            unchanged_ids = set()
             for results in results_list:
-                serial_new_findings, serial_reactivated_findings, serial_findings_to_mitigate, serial_untouched_findings = results.get()
-                new_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_new_findings]
-                reactivated_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_reactivated_findings]
-                findings_to_mitigate += [next(serializers.deserialize("json", finding)).object for finding in serial_findings_to_mitigate]
-                untouched_findings += [next(serializers.deserialize("json", finding)).object for finding in serial_untouched_findings]
-            # Different chunks are processed independently, each against its own live view of
-            # the database, so the same finding.id can come back from more than one chunk's
-            # results: duplicate entries in the uploaded report (see #3958) can cause two chunks
-            # to both touch the same finding, and every chunk computes "to mitigate" against the
-            # *entire* existing finding set minus only what it itself touched - so a finding
-            # legitimately handled by one chunk looks orphaned to every other chunk that didn't
-            # happen to see it. Test_Import_Finding_Action has a unique constraint on
-            # (test_import, finding), so each finding must end up in exactly one of the four
-            # buckets below before it reaches update_import_history / close_old_findings.
-            # Priority when a finding lands in more than one bucket: new > reactivated > untouched
-            # > to_mitigate. The first three reflect real work already saved by the chunk that
-            # processed them; "to mitigate" is the least trustworthy bucket (a chunk's absence of
-            # evidence isn't evidence the finding is gone) so it loses every tiebreak and is only
-            # trusted for findings no other chunk claimed at all.
-            new_ids = {finding.id for finding in new_findings}
-            reactivated_findings = [finding for finding in reactivated_findings if finding.id not in new_ids]
-            reactivated_ids = {finding.id for finding in reactivated_findings}
-            untouched_findings = [finding for finding in untouched_findings if finding.id not in new_ids and finding.id not in reactivated_ids]
+                chunk_new_ids, chunk_reactivated_ids, _chunk_to_mitigate_ids, chunk_unchanged_ids = results.get()
+                new_ids.update(chunk_new_ids)
+                reactivated_ids.update(chunk_reactivated_ids)
+                unchanged_ids.update(chunk_unchanged_ids)
+            # Different chunks are processed independently, each against its own live view of the
+            # database, so the same finding.id can come back from more than one chunk's results:
+            # duplicate entries in the uploaded report (see #3958) can cause two chunks to both
+            # touch the same finding. Test_Import_Finding_Action has a unique constraint on
+            # (test_import, finding), so each finding must end up in exactly one bucket. Priority
+            # when a finding lands in more than one bucket: new > reactivated > unchanged >
+            # to_mitigate. The first three reflect real work already saved by the chunk that
+            # processed them; "to mitigate" is computed below from whatever no chunk claimed at
+            # all, so it naturally loses every tiebreak.
+            reactivated_ids -= new_ids
+            unchanged_ids -= (new_ids | reactivated_ids)
+            touched_ids = new_ids | reactivated_ids | unchanged_ids
 
-            new_findings = list({finding.id: finding for finding in new_findings}.values())
-            reactivated_findings = list({finding.id: finding for finding in reactivated_findings}.values())
-            untouched_findings = list({finding.id: finding for finding in untouched_findings}.values())
+            # Fetch the test's findings exactly once, now that every chunk has finished and
+            # committed its work - instead of each chunk fetching/guessing against the full set
+            # independently. Anything not touched by any chunk is genuinely missing from this
+            # report. Resolve every bucket from this single fetch instead of a query per bucket.
+            findings_by_id = {finding.id: finding for finding in test.finding_set.all()}
+            to_mitigate_ids = set(findings_by_id.keys()) - touched_ids
 
-            touched_ids = new_ids | reactivated_ids | {finding.id for finding in untouched_findings}
-            findings_to_mitigate = list({finding.id: finding for finding in findings_to_mitigate
-                                         if finding.id not in touched_ids}.values())
+            new_findings = [findings_by_id[fid] for fid in new_ids if fid in findings_by_id]
+            reactivated_findings = [findings_by_id[fid] for fid in reactivated_ids if fid in findings_by_id]
+            untouched_findings = [findings_by_id[fid] for fid in unchanged_ids if fid in findings_by_id]
+            findings_to_mitigate = [findings_by_id[fid] for fid in to_mitigate_ids]
             logger.debug('REIMPORT_SCAN: All Findings Collected')
             # Indicate that the test is not complete yet as endpoints will still be rolling in.
             test.percent_complete = 50
