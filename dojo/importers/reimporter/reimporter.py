@@ -262,9 +262,20 @@ class DojoDefaultReImporter(object):
         # while it is in fact a new finding. So we substract new_items
         untouched = set(unchanged_items) - set(to_mitigate) - set(new_items)
 
+        touched_group_ids = []
         if is_finding_groups_enabled() and push_to_jira:
-            for finding_group in set([finding.finding_group for finding in reactivated_items + unchanged_items + new_items if finding.finding_group is not None]):
-                jira_helper.push_to_jira(finding_group)
+            touched_groups = set([finding.finding_group for finding in reactivated_items + unchanged_items + new_items if finding.finding_group is not None])
+            if compute_mitigation_candidates:
+                # Single authoritative call (sync path): this is the whole report, so pushing
+                # now is already correct and doesn't need coordinating with anyone else.
+                for finding_group in touched_groups:
+                    jira_helper.push_to_jira(finding_group)
+            else:
+                # One chunk among many: a group's members can be scattered across other chunks
+                # too, so pushing here would push the same group once per chunk that happens to
+                # touch it. Just report which groups were touched; reimport_scan pushes each one
+                # exactly once after combining every chunk's results.
+                touched_group_ids = [finding_group.id for finding_group in touched_groups]
         sync = kwargs.get('sync', False)
         if not sync:
             # Return plain finding IDs instead of JSON-serialized objects: everything here has
@@ -274,9 +285,10 @@ class DojoDefaultReImporter(object):
             return ([finding.id for finding in new_items],
                     [finding.id for finding in reactivated_items],
                     [finding.id for finding in to_mitigate],
-                    [finding.id for finding in untouched])
+                    [finding.id for finding in untouched],
+                    touched_group_ids)
 
-        return new_items, reactivated_items, to_mitigate, untouched
+        return new_items, reactivated_items, to_mitigate, untouched, touched_group_ids
 
     def close_old_findings(self, test, to_mitigate, scan_date_time, user, push_to_jira=None):
         logger.debug('IMPORT_SCAN: Closing findings no longer present in scan report')
@@ -310,11 +322,14 @@ class DojoDefaultReImporter(object):
                 finding.notes.add(note)
                 mitigated_findings.append(finding)
 
+        # Report which groups were touched instead of pushing here: reimport_scan combines this
+        # with whatever groups the chunked processing touched, so each group is only pushed to
+        # JIRA once across the whole reimport instead of once per call site.
+        touched_group_ids = []
         if is_finding_groups_enabled() and push_to_jira:
-            for finding_group in set([finding.finding_group for finding in to_mitigate if finding.finding_group is not None]):
-                jira_helper.push_to_jira(finding_group)
+            touched_group_ids = [finding.finding_group.id for finding in to_mitigate if finding.finding_group is not None]
 
-        return mitigated_findings
+        return mitigated_findings, touched_group_ids
 
     def reimport_scan(self, scan, scan_type, test, active=True, verified=True, tags=None, minimum_severity=None,
                     user=None, endpoints_to_add=None, scan_date=None, version=None, branch_tag=None, build_id=None,
@@ -371,11 +386,13 @@ class DojoDefaultReImporter(object):
             new_ids = set()
             reactivated_ids = set()
             unchanged_ids = set()
+            touched_group_ids = set()
             for results in results_list:
-                chunk_new_ids, chunk_reactivated_ids, _chunk_to_mitigate_ids, chunk_unchanged_ids = results.get()
+                chunk_new_ids, chunk_reactivated_ids, _chunk_to_mitigate_ids, chunk_unchanged_ids, chunk_touched_group_ids = results.get()
                 new_ids.update(chunk_new_ids)
                 reactivated_ids.update(chunk_reactivated_ids)
                 unchanged_ids.update(chunk_unchanged_ids)
+                touched_group_ids.update(chunk_touched_group_ids)
             # Different chunks are processed independently, each against its own live view of the
             # database, so the same finding.id can come back from more than one chunk's results:
             # duplicate entries in the uploaded report (see #3958) can cause two chunks to both
@@ -406,15 +423,26 @@ class DojoDefaultReImporter(object):
             test.save()
             importer_utils.update_test_progress(test)
         else:
-            new_findings, reactivated_findings, findings_to_mitigate, untouched_findings = \
+            new_findings, reactivated_findings, findings_to_mitigate, untouched_findings, _touched_group_ids = \
                 self.process_parsed_findings(test, parsed_findings, scan_type, user, active, verified,
                                              minimum_severity=minimum_severity, endpoints_to_add=endpoints_to_add,
                                              push_to_jira=push_to_jira, group_by=group_by, now=now, service=service, scan_date=scan_date, sync=True)
+            # Sync mode already pushed these groups directly above (it's the whole report in one
+            # call, no coordination needed) - nothing left to push here for that part.
+            touched_group_ids = set()
 
         closed_findings = []
         if close_old_findings:
             logger.debug('REIMPORT_SCAN: Closing findings no longer present in scan report')
-            closed_findings = self.close_old_findings(test, findings_to_mitigate, scan_date, user=user, push_to_jira=push_to_jira)
+            closed_findings, mitigate_group_ids = self.close_old_findings(test, findings_to_mitigate, scan_date, user=user, push_to_jira=push_to_jira)
+            touched_group_ids.update(mitigate_group_ids)
+
+        # Push every group touched anywhere in this reimport - by any chunk, or by
+        # close_old_findings - exactly once, now that we have the complete picture.
+        if touched_group_ids:
+            from dojo.models import Finding_Group
+            for finding_group in Finding_Group.objects.filter(id__in=touched_group_ids):
+                jira_helper.push_to_jira(finding_group)
 
         logger.debug('REIMPORT_SCAN: Updating test/engagement timestamps')
         importer_utils.update_timestamps(test, version, branch_tag, build_id, commit_hash, now, scan_date)
