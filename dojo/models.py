@@ -3309,6 +3309,11 @@ class JIRA_Instance(models.Model):
                                       null=True,
                                       blank=True,
                                       help_text=_("Choose the folder containing the Django templates used to render the JIRA issue description. These are stored in dojo/templates/issue-trackers. Leave empty to use the default jira_full templates."))
+    restricted_releases = models.CharField(max_length=2000,
+                                      null=True,
+                                      blank=True,
+                                      verbose_name=_('Restricted Releases'),
+                                      help_text=_("Comma-separated list of Domino release values (e.g. R2024.3,R2024.4) to show in the JIRA finding-group release table. Leave empty to show every release found on the group's findings."))
     epic_name_id = models.IntegerField(help_text=_("To obtain the 'Epic name id' visit https://<YOUR JIRA URL>/rest/api/2/field and search for Epic Name. Copy the number out of cf[number] and paste it here."))
     open_status_key = models.IntegerField(verbose_name=_('Reopen Transition ID'), help_text=_("Transition ID to Re-Open JIRA issues, visit https://<YOUR JIRA URL>/rest/api/latest/issue/<ANY VALID ISSUE KEY>/transitions?expand=transitions.fields to find the ID for your JIRA instance"))
     close_status_key = models.IntegerField(verbose_name=_('Close Transition ID'), help_text=_("Transition ID to Close JIRA issues, visit https://<YOUR JIRA URL>/rest/api/latest/issue/<ANY VALID ISSUE KEY>/transitions?expand=transitions.fields to find the ID for your JIRA instance"))

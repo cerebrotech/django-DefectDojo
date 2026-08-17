@@ -612,6 +612,14 @@ def jira_description(obj):
                 seen.add(rel)
                 domino_releases.append(rel)
 
+        # Optionally restrict which releases actually render in the table, via a
+        # comma-separated allow-list configured on the JIRA instance. Empty/unset
+        # means show every release found on the group's findings (today's behavior).
+        jira_instance = get_jira_instance(obj)
+        if jira_instance and jira_instance.restricted_releases:
+            allowed_releases = {r.strip() for r in jira_instance.restricted_releases.split(',') if r.strip()}
+            domino_releases = [release for release in domino_releases if release in allowed_releases]
+
         kwargs["domino_releases"] = domino_releases
 
         # Your template references `finding.test...` for URLs, so provide one Finding
