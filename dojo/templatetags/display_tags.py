@@ -813,6 +813,11 @@ def severity_abbrev(severity):
 
 
 @register.filter
+def tool_abbrev(tool):
+    return {'Twistlock': 'TW', 'Trivy': 'TR', 'Jfrog': 'JF'}.get(tool, tool)
+
+
+@register.filter
 def jira_project(obj, use_inheritance=True):
     return jira_helper.get_jira_project(obj, use_inheritance)
 

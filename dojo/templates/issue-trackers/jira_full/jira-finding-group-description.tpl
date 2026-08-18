@@ -18,10 +18,12 @@ Data Imported on : {{finding_group.test.updated}}
 
 *CVE*: {% if finding.cve %}[{{finding.cve|jiraencode}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %}
 
+TR=Trivy, TW=Twistlock, JF=JFrog
+
 {% for release in domino_releases %}
 h3. Domino Release {{ release|jiraencode }}
 || ID || Severity || Component || Version || Status || Fixed In || File Path || Date First Found || Vuln Type || Tool || Domino Release ||
-{% for finding in findings %}{% if release == "Unknown" %}{% if not finding.steps_to_reproduce %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
-{% endif %}{% else %}{% if finding.steps_to_reproduce == release %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
+{% for finding in findings %}{% if release == "Unknown" %}{% if not finding.steps_to_reproduce %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool|tool_abbrev}} | {{finding.steps_to_reproduce}} |
+{% endif %}{% else %}{% if finding.steps_to_reproduce == release %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool|tool_abbrev}} | {{finding.steps_to_reproduce}} |
 {% endif %}{% endif %}{% endfor %}
 {% endfor %}
