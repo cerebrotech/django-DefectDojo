@@ -1264,15 +1264,31 @@ def close_epic(eng, push_to_jira, **kwargs):
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
+@app.task(bind=True, max_retries=10)
 @dojo_model_from_id(model=Engagement)
-def update_epic(engagement, **kwargs):
+def update_epic(self, engagement, **kwargs):
+    try:
+        return _update_epic(engagement, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
+
+
+def _update_epic(engagement, **kwargs):
     logger.debug('trying to update jira EPIC for %d:%s', engagement.id, engagement.name)
 
     if not is_jira_configured_and_enabled(engagement):
         return False
 
     logger.debug('config found')
+
+    cooldown = jira_rate_limit.cooldown_remaining()
+    if cooldown > 0:
+        countdown = jira_rate_limit.countdown_with_jitter(cooldown)
+        logger.info('jira cooldown active (%ds remaining); deferring epic update for %s by %ds',
+                    cooldown, engagement.name, countdown)
+        raise JiraRateLimited(countdown)
 
     jira_project = get_jira_project(engagement)
     jira_instance = get_jira_instance(engagement)
@@ -1295,6 +1311,13 @@ def update_epic(engagement, **kwargs):
 
             return True
         except JIRAError as e:
+            if e.status_code == 429:
+                retry_after = _extract_retry_after(e)
+                jira_rate_limit.arm_cooldown(retry_after)
+                countdown = jira_rate_limit.countdown_with_jitter(retry_after)
+                logger.warning('jira 429 on epic update for %s; armed cooldown %ds, retrying in %ds',
+                               engagement.name, retry_after, countdown)
+                raise JiraRateLimited(countdown)
             logger.exception(e)
             log_jira_generic_alert('Jira Engagement/Epic Update Error', str(e))
             return False
@@ -1306,15 +1329,31 @@ def update_epic(engagement, **kwargs):
 
 @dojo_model_to_id
 @dojo_async_task
-@app.task
+@app.task(bind=True, max_retries=10)
 @dojo_model_from_id(model=Engagement)
-def add_epic(engagement, **kwargs):
+def add_epic(self, engagement, **kwargs):
+    try:
+        return _add_epic(engagement, **kwargs)
+    except JiraRateLimited as exc:
+        if _in_celery_async_context(self):
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        raise
+
+
+def _add_epic(engagement, **kwargs):
     logger.debug('trying to create a new jira EPIC for %d:%s', engagement.id, engagement.name)
 
     if not is_jira_configured_and_enabled(engagement):
         return False
 
     logger.debug('config found')
+
+    cooldown = jira_rate_limit.cooldown_remaining()
+    if cooldown > 0:
+        countdown = jira_rate_limit.countdown_with_jitter(cooldown)
+        logger.info('jira cooldown active (%ds remaining); deferring epic creation for %s by %ds',
+                    cooldown, engagement.name, countdown)
+        raise JiraRateLimited(countdown)
 
     jira_project = get_jira_project(engagement)
     jira_instance = get_jira_instance(engagement)
@@ -1347,6 +1386,13 @@ def add_epic(engagement, **kwargs):
             j_issue.save()
             return True
         except JIRAError as e:
+            if e.status_code == 429:
+                retry_after = _extract_retry_after(e)
+                jira_rate_limit.arm_cooldown(retry_after)
+                countdown = jira_rate_limit.countdown_with_jitter(retry_after)
+                logger.warning('jira 429 on epic creation for %s; armed cooldown %ds, retrying in %ds',
+                               engagement.name, retry_after, countdown)
+                raise JiraRateLimited(countdown)
             # should we try to parse the errors as JIRA is very strange in how it responds.
             # for example a non existent project_key leads to "project key is required" which sounds like something is missing
             # but it's just a non-existent project (or maybe a project for which the account has no create permission?)
