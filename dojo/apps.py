@@ -4,10 +4,31 @@ from django.apps import AppConfig
 from django.core.checks import register as register_check
 from django.db import models
 from watson import search as watson
+from watson.search import SearchAdapter
 
 from dojo.checks import check_configuration_deduplication
 
 logger = logging.getLogger(__name__)
+
+
+class SafeSearchAdapter(SearchAdapter):
+    """
+    Guards watson's content cleaning against a Python stdlib bug in
+    html.parser: certain malformed SGML "marked section" syntax (a literal
+    "<![" sequence) causes HTMLParser to call an error() method it never
+    implemented, raising NotImplementedError instead of just skipping the
+    malformed bit. Since Finding.save() triggers this indexing as a
+    post_save side effect, an unlucky bit of scanner/CVE text can otherwise
+    take down the entire save. Fall back to neutralizing that one sequence
+    rather than losing the save over a search-indexing side effect.
+    """
+
+    def prepare_content(self, content):
+        try:
+            return super().prepare_content(content)
+        except NotImplementedError:
+            logger.warning('strip_tags failed via html.parser during search indexing; falling back to a safe strip')
+            return content.replace('<![', '')
 
 
 class DojoAppConfig(AppConfig):
@@ -29,7 +50,7 @@ class DojoAppConfig(AppConfig):
 
         watson.register(self.get_model('Test'), fields=get_model_fields_with_extra(self.get_model('Test'), ('id', 'engagement__product__name', )), store=('engagement__product__name', ))  # test_type__name?
 
-        watson.register(self.get_model('Finding'), fields=get_model_fields_with_extra(self.get_model('Finding'), ('id', 'url', 'unique_id_from_tool', 'test__engagement__product__name', 'jira_issue__jira_key', )),
+        watson.register(self.get_model('Finding'), adapter_cls=SafeSearchAdapter, fields=get_model_fields_with_extra(self.get_model('Finding'), ('id', 'url', 'unique_id_from_tool', 'test__engagement__product__name', 'jira_issue__jira_key', )),
                         store=('status', 'jira_issue__jira_key', 'test__engagement__product__name', 'severity', 'severity_display', 'latest_note'))
 
         # some thoughts on Finding fields that are not indexed yet:
