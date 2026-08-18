@@ -16,10 +16,12 @@ https://dominodatalab.atlassian.net/wiki/spaces/ISAC/pages/2243461464/Vulnerabil
 
 Data Imported on : {{finding_group.test.updated}}
 
+*CVE*: {% if finding.cve %}[{{finding.cve|jiraencode}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %}
+
 {% for release in domino_releases %}
 h3. Domino Release {{ release|jiraencode }}
-|| ID || Severity || CVE || Component || Version || Status || Fixed In || File Path || Date First Found || Vuln Type || Tool || Domino Release ||
-{% for finding in findings %}{% if release == "Unknown" %}{% if not finding.steps_to_reproduce %}| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
-{% endif %}{% else %}{% if finding.steps_to_reproduce == release %}| {{finding.id}} | {{finding.severity}} | {% if finding.cve %}[{{finding.cve}}|{{finding.cve|vulnerability_url}}]{% else %}None{% endif %} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
+|| ID || Severity || Component || Version || Status || Fixed In || File Path || Date First Found || Vuln Type || Tool || Domino Release ||
+{% for finding in findings %}{% if release == "Unknown" %}{% if not finding.steps_to_reproduce %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
+{% endif %}{% else %}{% if finding.steps_to_reproduce == release %}| {{finding.id}} | {{finding.severity|severity_abbrev}} | {{finding.component_name|jiraencode_component}} | {{finding.component_version}} | {{ finding.status }} | {% if finding.mitigation %}{{ finding.mitigation }}{% else %}None{% endif %} | {{finding.service}} | {{finding.created|date:"Y-m-d"}} | {{finding.vuln_id_from_tool}} | {{finding.unique_id_from_tool}} | {{finding.steps_to_reproduce}} |
 {% endif %}{% endif %}{% endfor %}
 {% endfor %}

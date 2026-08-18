@@ -808,6 +808,11 @@ def jiraencode_component(value):
 
 
 @register.filter
+def severity_abbrev(severity):
+    return {'Critical': 'C', 'High': 'H', 'Medium': 'M', 'Low': 'L', 'Info': 'I'}.get(severity, severity)
+
+
+@register.filter
 def jira_project(obj, use_inheritance=True):
     return jira_helper.get_jira_project(obj, use_inheritance)
 
