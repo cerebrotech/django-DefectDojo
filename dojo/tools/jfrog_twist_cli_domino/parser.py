@@ -5,14 +5,14 @@ import json
 import logging
 import textwrap
 
-from dojo.models import Finding
+from dojo.models import Finding, System_Settings
 
 logger = logging.getLogger(__name__)
 
 
 class CombinedCSVParser(object):
 
-    def parse_issue(self, row, test):
+    def parse_issue(self, row, test, include_mediums=False):
         if not row:
             return None
 
@@ -50,7 +50,11 @@ class CombinedCSVParser(object):
         # out_of_scope_bool = False
         active_bool = True
         if severity and cve and 'prisma-' not in cve.lower():
-            if status.strip().lower()=='fixed' and severity.strip().lower() in ['high','critical']:
+            status_lower = status.strip().lower()
+            severity_lower = severity.strip().lower()
+            is_high_or_critical_fixed = status_lower == 'fixed' and severity_lower in ['high', 'critical']
+            is_medium_fixed_and_allowed = status_lower == 'fixed' and severity_lower == 'medium' and include_mediums
+            if is_high_or_critical_fixed or is_medium_fixed_and_allowed:
                 # out_of_scope_bool = False
                 # active_bool=True
 
@@ -119,15 +123,37 @@ class CombinedCSVParser(object):
         dupes = dict()
         if type(content) is bytes:
             content = content.decode('utf-8')
-        reader = csv.DictReader(io.StringIO(content), delimiter=',', quotechar='"')
-        for i,row in enumerate(reader):
-            finding = self.parse_issue(row, test)
+        # Materialize the rows so we can pass over them twice: once to decide
+        # whether Medium findings should be included at all for this container,
+        # and once to actually build the findings with that decision applied.
+        rows = list(csv.DictReader(io.StringIO(content), delimiter=',', quotechar='"'))
+
+        include_mediums = self.should_include_mediums(rows)
+
+        for i, row in enumerate(rows):
+            finding = self.parse_issue(row, test, include_mediums)
             if finding is not None:
                 # key = hashlib.md5((finding.severity + '|' + finding.title + '|' + finding.description).encode('utf-8')).hexdigest()
                 # if key not in dupes:
                 if True:
                     dupes[i] = finding
         return list(dupes.values())
+
+    def should_include_mediums(self, rows):
+        system_settings = System_Settings.objects.get()
+        if not system_settings.enable_jfrog_twist_medium_ingestion:
+            return False
+
+        medium_fixed_cves = set()
+        for row in rows:
+            cve = row.get('cve', '')
+            status = row.get('status', '')
+            severity = convert_severity(row.get('severity', ''))
+            if cve and status.strip().lower() == 'fixed' and severity == 'Medium':
+                medium_fixed_cves.add(cve)
+
+        threshold = system_settings.jfrog_twist_medium_unique_cve_threshold or 0
+        return len(medium_fixed_cves) > threshold
 
 
 

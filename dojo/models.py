@@ -266,6 +266,19 @@ class System_Settings(models.Model):
                   "title, Dojo marks the less recent finding as a duplicate. "
                   "When deduplication is enabled, a list of "
                   "deduplicated findings is added to the engagement view."))
+    enable_jfrog_twist_medium_ingestion = models.BooleanField(
+        default=False,
+        blank=False,
+        verbose_name=_('Enable Jfrog-Twist Medium ingestion'),
+        help_text=_("With this setting turned on, the 'Jfrog-Twist cli Domino Image Scan' parser will ingest "
+                  "Medium severity, fix-available findings for a container when the count of distinct Medium "
+                  "CVEs with a fix available exceeds the threshold below. When off, Medium findings are never "
+                  "ingested for this scan type, regardless of the threshold."))
+    jfrog_twist_medium_unique_cve_threshold = models.IntegerField(blank=True, null=True, default=12,
+        verbose_name=_('Jfrog-Twist Medium unique CVE threshold'),
+        help_text=_("Only used when 'Enable Jfrog-Twist Medium ingestion' is on. A container's Medium severity, "
+                  "fix-available findings are only ingested if the count of distinct CVEs among them exceeds "
+                  "this number."))
     delete_duplicates = models.BooleanField(default=False, blank=False, help_text=_("Requires next setting: maximum number of duplicates to retain."))
     max_dupes = models.IntegerField(blank=True, null=True, default=10,
                                     verbose_name=_('Max Duplicates'),
