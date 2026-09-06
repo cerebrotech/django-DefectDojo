@@ -9,6 +9,8 @@ FROM python:3.8.14-slim-bullseye@sha256:8ae28a791362432b0303d485f4c9fc16479a3254
 FROM base as build
 WORKDIR /app
 RUN \
+  printf 'deb http://snapshot.debian.org/archive/debian/20240819T204354Z bullseye main\ndeb http://snapshot.debian.org/archive/debian-security/20240819T154924Z bullseye-security main\ndeb http://snapshot.debian.org/archive/debian/20240819T204354Z bullseye-updates main\n' > /etc/apt/sources.list && \
+  echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/10no-check-valid-until && \
   apt-get -y update && \
   apt-get -y install --no-install-recommends \
     gcc \
