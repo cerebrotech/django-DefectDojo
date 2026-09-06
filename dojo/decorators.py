@@ -105,6 +105,20 @@ def dojo_model_from_id(_func=None, *, model=Finding, parameter=0):
 
             if model_or_id:
                 if not isinstance(model_or_id, models.Model) and we_want_async(*args, func=func, **kwargs):
+                    if not isinstance(model_or_id, (int, str)):
+                        # This almost always means `parameter` doesn't account for a bound
+                        # task's `self` argument at position 0. If the task is declared with
+                        # @app.task(bind=True), `parameter` needs to be at least 1, not the
+                        # default 0 - otherwise this decorator tries to resolve the task
+                        # instance itself as if it were the model's id, which fails deep
+                        # inside the ORM with a confusing error. Fail loudly here instead.
+                        raise TypeError(
+                            "dojo_model_from_id(model=%s, parameter=%s) expected an id or a %s "
+                            "instance at parameter %s, but got %s (%r). If this task uses "
+                            "@app.task(bind=True), remember 'self' occupies position 0, so "
+                            "'parameter' usually needs to be 1 or higher." % (
+                                model.__name__, parameter, model.__name__, parameter,
+                                type(model_or_id).__name__, model_or_id))
                     logger.debug('instantiating model_or_id: %s for model: %s', model_or_id, model)
                     try:
                         instance = model.objects.get(id=model_or_id)

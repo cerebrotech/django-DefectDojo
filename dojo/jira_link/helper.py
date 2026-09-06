@@ -1265,7 +1265,7 @@ def close_epic(eng, push_to_jira, **kwargs):
 @dojo_model_to_id
 @dojo_async_task
 @app.task(bind=True, max_retries=10)
-@dojo_model_from_id(model=Engagement)
+@dojo_model_from_id(model=Engagement, parameter=1)
 def update_epic(self, engagement, **kwargs):
     try:
         return _update_epic(engagement, **kwargs)
@@ -1330,7 +1330,7 @@ def _update_epic(engagement, **kwargs):
 @dojo_model_to_id
 @dojo_async_task
 @app.task(bind=True, max_retries=10)
-@dojo_model_from_id(model=Engagement)
+@dojo_model_from_id(model=Engagement, parameter=1)
 def add_epic(self, engagement, **kwargs):
     try:
         return _add_epic(engagement, **kwargs)
