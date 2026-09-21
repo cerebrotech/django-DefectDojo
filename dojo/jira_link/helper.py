@@ -831,32 +831,15 @@ def add_jira_issue(obj, *args, **kwargs):
 
             new_issue = jira.create_issue(fields)
 
-            # Upload dojo finding screenshots to Jira
-            findings = [obj]
-            if type(obj) == Finding_Group:
-                findings = obj.findings.all()
-
-            for find in findings:
-                for pic in get_file_images(find):
-                    # It doesn't look like the celery cotainer has anything in the media
-                    # folder. Has this feature ever worked?
-                    try:
-                        jira_attachment(
-                            find, jira, new_issue,
-                            settings.MEDIA_ROOT + '/' + pic)
-                    except FileNotFoundError as e:
-                        logger.info(e)
-
-            if jira_project.enable_engagement_epic_mapping:
-                eng = obj.test.engagement
-                logger.debug('Adding to EPIC Map: %s', eng.name)
-                epic = get_jira_issue(eng)
-                if epic:
-                    add_issues_to_epic(jira, obj, epic_id=epic.jira_id, issue_keys=[str(new_issue.id)], ignore_epics=True)
-                else:
-                    logger.info('The following EPIC does not exist: %s', eng.name)
-
-            # only link the new issue if it was successfully created, incl attachments and epic link
+            # Link the new issue right away, before any of the best-effort follow-up
+            # work below (screenshots, epic mapping, comment backfill). This whole
+            # block is still inside transaction.atomic(), so nothing commits until it
+            # exits - if screenshots/epic-mapping/etc ran first (as they used to) and
+            # one of them raised, the rollback would undo this save even though the
+            # issue was already really created on Jira's side, and the next retry
+            # would create a second, duplicate issue since has_jira_issue would still
+            # read False. Saving the link immediately, before any of that other work,
+            # means a failure later can't roll back an already-successful creation.
             logger.debug('saving JIRA_Issue for %s finding %s', new_issue.key, obj.id)
             j_issue = JIRA_Issue(
                 jira_id=new_issue.id, jira_key=new_issue.key, jira_project=jira_project)
@@ -865,17 +848,6 @@ def add_jira_issue(obj, *args, **kwargs):
             j_issue.jira_creation = timezone.now()
             j_issue.jira_change = timezone.now()
             j_issue.save()
-            issue = jira.issue(new_issue.id)
-
-            logger.info('Created the following jira issue for %d:%s', obj.id, to_str_typed(obj))
-
-            # Add any notes that already exist in the finding to the JIRA
-            for find in findings:
-                if find.notes.all():
-                    for note in find.notes.all().reverse():
-                        add_comment(obj, note)
-
-            return True
         except TemplateDoesNotExist as e:
             logger.exception(e)
             log_jira_alert(str(e), obj)
@@ -892,6 +864,51 @@ def add_jira_issue(obj, *args, **kwargs):
             logger.error("jira_meta for project: %s and url: %s meta: %s", jira_project.project_key, jira_project.jira_instance.url, json.dumps(meta, indent=4))  # this is None safe
             log_jira_alert(e.text, obj)
             return False
+
+    logger.info('Created the following jira issue for %d:%s', obj.id, to_str_typed(obj))
+
+    # Everything below is best-effort follow-up on an issue that's already been
+    # created and linked above (the critical transaction already committed by this
+    # point). A failure here should never be able to cause a duplicate issue on
+    # retry - just log it and move on rather than letting it propagate.
+    try:
+        # Upload dojo finding screenshots to Jira
+        findings = [obj]
+        if type(obj) == Finding_Group:
+            findings = obj.findings.all()
+
+        for find in findings:
+            for pic in get_file_images(find):
+                # It doesn't look like the celery cotainer has anything in the media
+                # folder. Has this feature ever worked?
+                try:
+                    jira_attachment(
+                        find, jira, new_issue,
+                        settings.MEDIA_ROOT + '/' + pic)
+                except FileNotFoundError as e:
+                    logger.info(e)
+
+        if jira_project.enable_engagement_epic_mapping:
+            eng = obj.test.engagement
+            logger.debug('Adding to EPIC Map: %s', eng.name)
+            epic = get_jira_issue(eng)
+            if epic:
+                add_issues_to_epic(jira, obj, epic_id=epic.jira_id, issue_keys=[str(new_issue.id)], ignore_epics=True)
+            else:
+                logger.info('The following EPIC does not exist: %s', eng.name)
+
+        # issue = jira.issue(new_issue.id)  # unused - was a redundant re-fetch of the issue created above
+
+        # Add any notes that already exist in the finding to the JIRA
+        for find in findings:
+            if find.notes.all():
+                for note in find.notes.all().reverse():
+                    add_comment(obj, note)
+    except Exception as e:
+        logger.exception(e)
+        log_jira_alert('Jira issue %s was created for %s, but a follow-up step (screenshots/epic mapping/comment backfill) failed: %s' % (new_issue.key, to_str_typed(obj), str(e)), obj)
+
+    return True
 
 
 # we need two separate celery tasks due to the decorators we're using to map to/from ids
