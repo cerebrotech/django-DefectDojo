@@ -799,6 +799,22 @@ def add_jira_issue(obj, *args, **kwargs):
                 # epic name is always mandatory in jira, so we populate it
                 fields[epic_name_field] = fields['summary']
 
+            # Set the parent/epic in the same create call instead of a separate
+            # add-to-epic call afterward. This avoids the window where the issue
+            # exists on Jira but isn't parented yet (e.g. if a follow-up call
+            # failed) - epic assignment now shares the same 429/retry handling
+            # as the create call itself, since it's the same API request.
+            if jira_project.enable_engagement_epic_mapping:
+                eng = obj.test.engagement
+                epic = get_jira_issue(eng)
+                if epic:
+                    if 'parent' in meta['projects'][0]['issuetypes'][0]['fields']:
+                        fields['parent'] = {'id': epic.jira_id}
+                    else:
+                        logger.info('parent field not available for this issuetype, cannot map %s to EPIC: %s', to_str_typed(obj), eng.name)
+                else:
+                    logger.info('The following EPIC does not exist: %s', eng.name)
+
             if 'priority' in meta['projects'][0]['issuetypes'][0]['fields']:
                 fields['priority'] = {
                                         'name': jira_priority(obj)
@@ -888,14 +904,11 @@ def add_jira_issue(obj, *args, **kwargs):
                 except FileNotFoundError as e:
                     logger.info(e)
 
-        if jira_project.enable_engagement_epic_mapping:
-            eng = obj.test.engagement
-            logger.debug('Adding to EPIC Map: %s', eng.name)
-            epic = get_jira_issue(eng)
-            if epic:
-                add_issues_to_epic(jira, obj, epic_id=epic.jira_id, issue_keys=[str(new_issue.id)], ignore_epics=True)
-            else:
-                logger.info('The following EPIC does not exist: %s', eng.name)
+        # Epic mapping is now set directly on the create call above (as the
+        # 'parent' field), so there's no separate add-to-epic follow-up here
+        # for newly-created issues. The update path (update_jira_issue) still
+        # does a separate add_issues_to_epic call, since there's no create
+        # call to attach 'parent' to for an issue that already exists.
 
         # issue = jira.issue(new_issue.id)  # unused - was a redundant re-fetch of the issue created above
 
