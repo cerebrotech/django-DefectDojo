@@ -279,6 +279,14 @@ class System_Settings(models.Model):
         help_text=_("Only used when 'Enable Jfrog-Twist Medium ingestion' is on. A container's Medium severity, "
                   "fix-available findings are only ingested if the count of distinct CVEs among them exceeds "
                   "this number."))
+    jfrog_twist_medium_s3_bucket = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name=_('Jfrog-Twist Medium exclusion list S3 bucket'),
+        help_text=_("Existing S3 bucket containing the list of container substrings excluded from Medium ingestion."))
+    jfrog_twist_medium_s3_key = models.CharField(
+        max_length=1024, blank=True, default='',
+        verbose_name=_('Jfrog-Twist Medium exclusion list S3 key'),
+        help_text=_("Object key of a UTF-8 file with one excluded container substring per line."))
     delete_duplicates = models.BooleanField(default=False, blank=False, help_text=_("Requires next setting: maximum number of duplicates to retain."))
     max_dupes = models.IntegerField(blank=True, null=True, default=10,
                                     verbose_name=_('Max Duplicates'),

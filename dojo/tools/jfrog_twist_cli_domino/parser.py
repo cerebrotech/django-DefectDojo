@@ -5,12 +5,54 @@ import json
 import logging
 import textwrap
 
+import boto3
+from botocore.exceptions import ClientError
+
 from dojo.models import Finding, System_Settings
 
 logger = logging.getLogger(__name__)
 
 
 class CombinedCSVParser(object):
+
+    @staticmethod
+    def get_container_name_with_tag(row):
+        container_name = (row.get('container_name') or '').strip()
+        tag = (row.get('tag') or '').strip()
+        if not container_name:
+            return ''
+        return container_name + ':' + tag if tag else container_name
+
+    def get_s3_container_list(self, system_settings=None):
+        """Read excluded container substrings from the configured S3 object.
+
+        The object may be a newline-delimited text file or a JSON array of
+        strings. boto3 uses the worker's default AWS credential chain, so an
+        attached IAM role can provide access without credentials in the GUI.
+        """
+        if system_settings is None:
+            system_settings = System_Settings.objects.get()
+        bucket = system_settings.jfrog_twist_medium_s3_bucket
+        key = system_settings.jfrog_twist_medium_s3_key
+        if not bucket or not key:
+            return []
+
+        try:
+            response = boto3.client('s3').get_object(Bucket=bucket, Key=key)
+        except ClientError as error:
+            if error.response.get('Error', {}).get('Code') in ('NoSuchKey', '404'):
+                logger.info("Jfrog-Twist Medium exclusion list is absent from S3; using the existing threshold")
+                return []
+            raise
+        content = response['Body'].read().decode('utf-8-sig')
+        if content.lstrip().startswith('['):
+            containers = json.loads(content)
+            if not isinstance(containers, list) or any(not isinstance(item, str) for item in containers):
+                raise ValueError("The S3 container list must be a JSON array of strings")
+        else:
+            containers = content.splitlines()
+
+        return [item.strip() for item in containers if item.strip() and not item.lstrip().startswith('#')]
 
     def parse_issue(self, row, test, include_mediums=False):
         if not row:
@@ -112,10 +154,6 @@ class CombinedCSVParser(object):
 
 
 
-
-
-
-
     def parse(self, filename, test):
         if filename is None:
             return
@@ -123,15 +161,24 @@ class CombinedCSVParser(object):
         dupes = dict()
         if type(content) is bytes:
             content = content.decode('utf-8')
-        # Materialize the rows so we can pass over them twice: once to decide
-        # whether Medium findings should be included at all for this container,
-        # and once to actually build the findings with that decision applied.
+        # Apply the existing file-wide Medium threshold, then optional exclusions.
         rows = list(csv.DictReader(io.StringIO(content), delimiter=',', quotechar='"'))
 
         include_mediums = self.should_include_mediums(rows)
+        excluded_containers = []
+        if include_mediums:
+            try:
+                excluded_containers = self.get_s3_container_list()
+            except Exception:
+                logger.exception("Unable to load the Jfrog-Twist Medium container exclusion list from S3")
+                include_mediums = False
 
         for i, row in enumerate(rows):
-            finding = self.parse_issue(row, test, include_mediums)
+            container = self.get_container_name_with_tag(row)
+            normalized_container = container.casefold()
+            is_excluded = any(excluded.casefold() in normalized_container
+                              for excluded in excluded_containers)
+            finding = self.parse_issue(row, test, include_mediums and not is_excluded)
             if finding is not None:
                 # key = hashlib.md5((finding.severity + '|' + finding.title + '|' + finding.description).encode('utf-8')).hexdigest()
                 # if key not in dupes:
@@ -146,9 +193,9 @@ class CombinedCSVParser(object):
 
         medium_fixed_cves = set()
         for row in rows:
-            cve = row.get('cve', '')
-            status = row.get('status', '')
-            severity = convert_severity(row.get('severity', ''))
+            cve = row.get('cve') or ''
+            status = row.get('status') or ''
+            severity = convert_severity(row.get('severity') or '')
             if cve and status.strip().lower() == 'fixed' and severity == 'Medium':
                 medium_fixed_cves.add(cve)
 
@@ -245,4 +292,3 @@ class JfrogTwistCliDominoParser(object):
 #
 #     vectors = cvss.parser.parse_cvss_from_text("CVSS:3.0/S:C/C:H/I:H/A:N/AV:P/AC:H/PR:H/UI:R/E:H/RL:O/RC:R/CR:H/IR:X/AR:X/MAC:H/MPR:X/MUI:X/MC:L/MA:X")
 #     vectors = cvss.parser.parse_cvss_from_score()
-
